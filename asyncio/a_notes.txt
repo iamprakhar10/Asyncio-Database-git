@@ -1,0 +1,33 @@
+Suppose we run:
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+and we do not specify --workers.
+Then, normally:
+1 Uvicorn worker process
+=
+1 Python process
+=
+usually 1 main thread
+=
+1 asyncio event loop
+=
+1 loaded FastAPI application
+
+
+
+
+We start the Uvicorn program, and Uvicorn runs inside a Python process.
+It has its own:
+memory
+Python interpreter
+variables
+FastAPI app
+Uvicorn code
+event loop
+
+Single Python process
+│
+├── running Uvicorn's Python code
+│
+├── asyncio event loop
+│
+└── loaded FastAPI app object
