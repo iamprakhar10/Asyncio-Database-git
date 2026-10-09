@@ -31,3 +31,28 @@ Single Python process
 ├── asyncio event loop
 │
 └── loaded FastAPI app object
+
+
+Asyncio is a python library to wirte concurrent code using asyn, await 
+syntax It doesn't dp processing of code faster, it just means we can 
+do other useful worker instead of sitting ideally by while waiting for
+things like network requests and database queries.
+
+That's why asyncio excels at I/O bound task(which is anytime our program 
+is waiting for anything external). Asyncio is singlethearded and runs 
+on a single process. It uses cooperatve multitasking where task 
+voulantarily give up control.
+
+For CPU counded tasks we would use processes
+
+
+if __name__=='__main__':
+    asyncio.run(main())    #starting an event loop
+Event loop is basically the engine that runs and manages asynchronous functions
+Think of it as a scheduler, it keeps track of all our tasks and when a task is 
+suspended(because it's waiting for something else) control returns to the 
+event loop which then finds another task to either start or resume
+
+So we have to be running an event loop for any of our asynchronous code to work
+that's what asyncio.run() function is responsible for, it also closes down
+the event loop whenever it's done
