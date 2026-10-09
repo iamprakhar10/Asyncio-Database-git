@@ -56,3 +56,14 @@ event loop which then finds another task to either start or resume
 So we have to be running an event loop for any of our asynchronous code to work
 that's what asyncio.run() function is responsible for, it also closes down
 the event loop whenever it's done
+
+awaitables are objects that implement a special await mrthod under the hood
+
+We can't await a synchronous function. synchronous libraries don't have a 
+mechanism to work with the event  loop. They din't know how to yield 
+control over and resume later()
+
+time.sleep() don't have __await__ function, use asyncio.sleep() instead
+
+An event loop is just a loop that keeps checking: 
+"Is htere any work ready to CONTINUE"
