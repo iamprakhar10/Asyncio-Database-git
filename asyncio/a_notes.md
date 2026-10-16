@@ -79,6 +79,15 @@ asyncio event loop
     Python implementation
 
 
+
+
+A function is a sequence of instructions that takes inputs
+and returns outputs
+
+
+
+
+
 Three main types of awaitable objects:
 1. Coroutines -> Functions defined when we do <async def>, there executions can be paused
 coroutine object: Awaitable that gets returned when we call that function
@@ -95,3 +104,4 @@ will be able to run them whenever it's ready
 
 
 3. Futures
+

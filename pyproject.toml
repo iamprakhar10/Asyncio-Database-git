@@ -11,7 +11,9 @@ dependencies = [
     "fastapi>=0.143.0",
     "ipykernel>=7.4.0",
     "pillow>=12.3.0",
+    "pydantic>=2.14.1",
     "requests>=2.34.2",
+    "typing>=3.10.0.0",
     "uvicorn>=0.54.0",
 ]
 
