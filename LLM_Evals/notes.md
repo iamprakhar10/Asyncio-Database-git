@@ -44,6 +44,13 @@ Reference-free      Rule/state checks LLM judge on quality
 Reference-based vs reference-free = what you evaluate against.
 Deterministic vs non-deterministic = whether the evaluator always produces the same result for the same input.
 
+A rubric is just a clear scoring rule that tells the evaluator exactly what each score means
+A rubric makes the standard explicit:
+5 = fully correct, relevant, clear, and complete
+4 = mostly correct, with a minor omission
+3 = partially correct, but misses an important point
+2 = major mistakes or poor relevance
+1 = mostly incorrect or unusable
 
 ### Offline vs Online evals
 evals before deploying is ofline Eval
@@ -51,3 +58,11 @@ why do we need it?
 - Pre-release tseting
 - Version comparision
 - Regression Testing
+
+###### What about post deployment?
+1. Unanticipated inputs -> (hindi english mix question, half questions, angry rants,adverserial prompt-injection attempts, or in short the edge-cases we never considered)
+2. Emergent/systematic failure -> Problems that only exist at scale, under laod, over time
+3. Drift -> When offline eval goes obsolete
+
+Online evals is evaluating our system on live production traffic,after deployment, as real users interact with it
+Biggest challange => No golden dataset here
