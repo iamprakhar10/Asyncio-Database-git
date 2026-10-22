@@ -175,3 +175,86 @@ Suppose there is one ticket available and Two peoplebuy simultaneously
          CAN BUY TICKET
 
 That's a Race condition, therefopre we need isolation/concurrency control
+
+
+
+
+
+# Caching
+Imagine millions of requests ask:
+
+SELECT *
+FROM products
+WHERE id = 500;
+
+Suppose product 500 barely changes. We would have to process eveyr request via database, even with good index, PostgreSQL has to do the work
+
+We can keep a faster temporary copy.
+                  Request
+                     ↓
+                   Cache
+                  /     \
+              exists?   missing?
+                ↓          ↓
+              return    PostgreSQL
+                            ↓
+                       put into cache
+                            ↓
+                          return
+
+
+The cache stores a copy of some data/result.
+
+For example:
+Redis
+
+key:
+product:500
+
+value:
+{
+   name: MacBook,
+   price: 100000
+}                          
+----------------------------
+Then:
+GET product:500
+
+can be extremely fast
+----------------------------
+Why cache is faster?
+- cache often keeps hot data in RAM
+- Simpler Lookup
+- avoids joins/caculations
+- reduces load on the primary database
+
+
+###### But caching creates a new problem
+PostgreSQL:
+price = ₹90,000
+
+Redis cache:
+price = ₹100,000
+
+Once I have two copies of data, how do I keep them consistent enough?
+ 
+Caching invalidation
+One strategy:
+UPDATE database
+then
+DELETE cached product:500
+
+Next request:
+cache miss
+    ↓
+DB
+    ↓
+₹90,000
+    ↓
+put ₹90,000 into cache
+
+
+TTL (Time to live)
+Another solution:
+Keep cached value only for a certain amount of time.
+
