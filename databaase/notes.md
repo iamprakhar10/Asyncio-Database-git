@@ -302,3 +302,107 @@ TTL (Time to live)
 Another solution:
 Keep cached value only for a certain amount of time.
 
+
+
+
+
+# Database Connectiosn and Connection pooling
+
+Why do we need connections at all?
+Our FastAPI Application and PostgreSQL are sepateate programs, often separate processes and sometines separate machines
+
+When we do this(below code)
+
+db.query(User).filter(User.id == 5).first()
+
+
+conceptually this has to happen:
+FastAPI process
+      |
+      |  database connection
+      v
+PostgreSQL server
+      |
+      | executes SQL
+      v
+returns rows
+
+A database connection is a long lived communication session between our application and DB server
+
+It's not just:
+send SQL packet
+receive answer
+done
+
+FastAPI process
+    |
+    | database connection
+    |  (usually TCP socket)
+    v
+PostgreSQL server
+
+connection ≠ process
+
+one active DB connection
+        ↕
+one PostgreSQL backend process
+
+500 HTTP requests
+       |
+       v
+FastAPI
+       |
+   connection pool
+   [C1 C2 C3 ... C20]
+       |
+       v
+~20 PostgreSQL backend processes
+
+a connection is handled by a PostgreSQL backend process, but the connection itself is not that process, in normal PostgreSQL architecture, one client connection is handled by one dedicated PostgreSQL backend process
+
+There is also a main PostgreSQL server process plus background processes for things like checkpoints, WAL, autovacuum, etc., so PostgreSQL as a whole is not just those 20 processes
+
+
+Also PostgreSQL cannot comfortably accept an unlimited number of active connections. Every DB connection consumes memory and other resources.
+
+So instead:
+                 CONNECTION POOL
+
+FastAPI      ┌──────────────────────┐
+requests --->│ connection 1         │
+             │ connection 2         │
+             │ connection 3         │
+             │ connection 4         │
+             └──────────┬───────────┘
+                        |
+                        v
+                   PostgreSQL
+
+The connections are created ahead of time or reused.
+What happens during a request?
+Suppose your pool has 5 connections.
+Pool:
+
+C1  free
+C2  free
+C3  busy
+C4  free
+C5  busy
+
+New request comes in:
+request
+   |
+   v
+borrow C1
+   |
+run SQL
+   |
+receive result
+   |
+return C1 to pool
+
+The connection is not destroyed.
+
+It goes back into the pool.
+
+That's connection pooling.
