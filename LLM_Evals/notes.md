@@ -66,3 +66,13 @@ why do we need it?
 
 Online evals is evaluating our system on live production traffic,after deployment, as real users interact with it
 Biggest challange => No golden dataset here
+
+
+# LLM Model evals and their capabilities
+Why?
+- To comparedifferent models fairly
+- To track whether newer models are improving
+- Is the model safe
+
+### Custom model evals for our required job
+
