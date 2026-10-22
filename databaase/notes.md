@@ -107,3 +107,71 @@ Treat them as one unit
              OR
          NONE HAPPEN
 If something fails, ROLLBACK
+
+
+
+### ACID(Atomicity, Consistency, Isolation, Durability)
+##### A — Atomicity
+all or nothing
+Our bank transfer example.
+
+##### C — Consistency
+The database should move:
+valid state
+    ↓
+valid state
+
+For example:
+balance cannot violate defined constraints
+foreign keys remain valid
+unique constraints remain valid
+
+Important nuance: Consistency doesn't mean "every replica instantly has identical data." That's a different meaning of consistency used in distributed systems
+
+##### I - Isolation
+It defines how and when changes made by one running transaction become visible to other concurrent transactions.
+
+
+                    DATABASE
+                       │
+             ┌─────────┴─────────┐
+             │                   │
+       Transactions          Concurrency
+             │                   │
+      group operations      multiple operations
+       into one unit          at same time
+             │                   │
+             └─────────┬─────────┘
+                       ↓
+                   Isolation
+                       ↓
+               prevent bad interactions
+
+##### D - Durability
+Once:
+COMMIT successful
+
+the database promises that the committed change won't simply disappear because the process crashes.
+
+
+
+
+## Concurrency
+Multiple requests operating on database arond the same time
+
+We want this behaviour otherwise User B must wait for User A's entire transaction
+
+But concurrency creates problems.
+Suppose there is one ticket available and Two peoplebuy simultaneously
+             Database
+            tickets = 1
+             /      \
+            /        \
+       Request A   Request B
+        reads 1     reads 1
+            \        /
+             \      /
+        BOTH THINK THEY
+         CAN BUY TICKET
+
+That's a Race condition, therefopre we need isolation/concurrency control
