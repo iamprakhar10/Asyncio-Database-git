@@ -75,6 +75,50 @@ few heap pages(heap is not related to heap datastructue)
 
 an index only helps when it meaningfully reduces how much of the table has to be visited.
 
+Indexes can speed up many reads but they make the writes more expensive
+
+Which columns should be usually indexed?
+Columns that are frequently used in:
+WHERE
+JOIN
+ORDER BY
+
+
+
+Indexes on join columns can make joins significantly faster.
+Foreign keys are not automatically indexed in PostgreSQL, which is an important practical detail
+
+
+###### Composite indexes
+Now suppose you frequently run:
+SELECT *
+FROM complaints
+WHERE city = 'Jabalpur'
+AND status = 'OPEN';
+
+You could create:
+CREATE INDEX idx_city_status
+ON complaints(city, status);
+
+This is a composite index because it contains multiple columns.
+
+Conceptually:
+(city, status)
+
+Bhopal   CLOSED
+Bhopal   OPEN
+Indore   CLOSED
+Indore   OPEN
+Jabalpur CLOSED
+Jabalpur OPEN
+
+It is sorted primarily by:
+city
+
+and then within a city by:
+status
+
+The ordering matters.
 
 #### Transactions
 Transfer 34 rs from a to b
