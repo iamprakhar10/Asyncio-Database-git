@@ -71,4 +71,39 @@ INDEX IS GREAT WHEN:
         ↓
 few TIDs
         ↓
-few heap pages
+few heap pages(heap is not related to heap datastructue)
+
+an index only helps when it meaningfully reduces how much of the table has to be visited.
+
+
+#### Transactions
+Transfer 34 rs from a to b
+a -= 34
+b += 34
+BEGIN;
+
+UPDATE accounts
+SET balance = balance - 100
+WHERE id = 'A';
+
+UPDATE accounts
+SET balance = balance + 100
+WHERE id = 'B';
+
+COMMIT;
+Transaction is basically a boundary:
+We are telling database that these operations belong together,
+Treat them as one unit
+
+          Transaction
+              │
+      ┌───────┴───────┐
+      ↓               ↓
+ subtract A        add B
+
+              ↓
+
+         ALL SUCCEED
+             OR
+         NONE HAPPEN
+If something fails, ROLLBACK
