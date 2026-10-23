@@ -406,3 +406,162 @@ The connection is not destroyed.
 It goes back into the pool.
 
 That's connection pooling.
+
+
+
+## Replication
+Maintaining copies of same database on multiple servers
+
+                 Primary
+                PostgreSQL
+                    |
+          replication stream
+          /         |         \
+         v          v          v
+      Replica 1  Replica 2  Replica 3
+
+Why replicate?
+Suppose:
+writes = 1,000/sec
+reads  = 100,000/sec
+
+Instead of making one machine do everything:
+                Primary
+                  |
+            writes happen here
+                  |
+        +---------+---------+
+        |         |         |
+        v         v         v
+     Replica   Replica   Replica
+       reads     reads     reads    
+
+
+Replication lag
+
+WRITE
+  |
+  v
+Primary
+  |
+  v
+success
+
+then immediately
+
+READ
+  |
+  v
+Replica
+
+may return stale data.       
+
+
+
+## Failover
+Replication isn't only about scaling reads.
+
+Suppose your primary dies:
+                 Primary
+                   X
+                crashed
+
+                  |
+         +--------+--------+
+         |                 |
+         v                 v
+      Replica A         Replica B
+
+One replica can be promoted:
+Replica A
+   |
+   v
+NEW PRIMARY
+
+Applications reconnect to it.
+
+Replicating Reads won't help if the bottleneck becomes write operation. If that happens, we have to consider Sharding
+
+
+
+Resharding
+Suppose you originally had:
+4 shards
+
+then need:
+8 shards
+
+Now huge amounts of data may need to move.
+old shard
+   |
+   | move rows
+   v
+new shards
+
+while the system remains online.
+
+That is hard.
+
+So sharding is generally something you avoid until you actually need it.
+
+
+# Distributed database Theory
+
+Question: Waht happens whne one logical database is spread across multiple machines connected by a network
+
+Answer: A lot of assumptions we had with one machine stop being true
+
+Every time you add another database machine, you gain capacity or reliability, but you also create coordination problems.
+
+CAP Theorem: 
+
+C - Consistency
+A - Availability
+P - Partition Tolerance
+
+For a distributed system, the theorem states that it is possible  to attain only two properies and the third would be always compromised
+
+The system requirements should define which two properties should be chosen over the rest
+
+CA - Monolithic(One server serves everything, so it will be consistent and Available)
+AP - Loose consistency(Social media posts)
+CP - Loose availability(Bank server on updates)
+
+
+Generally choice comes down to C or A. Partition tolerance should always be there
+
+Blog website - A
+Multiplayer online game - A
+stock trading platforms - C
+video streaming sites - A
+Ticket booking systems - C
+Video chat applications - A
+Bank - C
+
+Across machines
+Now:
+Node A
+   |
+   | network
+   |
+Node B
+   |
+   | network
+   |
+Node C
+
+The network can:
+be slow
+drop packets
+partition
+reorder/delay messages
+
+
+What if A and B are working but they simply can't communicate.
+That's network Partition
+
+Strong consistency
+Eventual Consistency
+Quorums
+
+Atomicity becomes much harder when multiple independent machines participate.
