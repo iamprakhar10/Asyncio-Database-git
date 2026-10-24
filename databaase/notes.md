@@ -745,5 +745,116 @@ NO ───→ scan documents
 
 
 for ordinary document-field lookup, think: B-tree-style index over document fields
+Write scale: HIGH(sharded)
 ###### Disadvantages
-Data duplication
+Data duplication(A seller nem embedded in 10k documnets means 10k writes to rename)
+Weak cross-document queries
+Flexibility becomes chaos without enforced rule, the schema drifts
+
+
+
+# sql practice
+sql_practice=> SELECT * FROM users;
+ id |  name   |        email        
+----+---------+---------------------
+  1 | Alice   | alice@example.com
+  2 | Bob     | bob@example.com
+  3 | Charlie | charlie@example.com
+  4 | David   | david@example.com
+(4 rows)
+
+sql_practice=> SELECT * FROM hotels;
+ id |       name        |  city   | rating 
+----+-------------------+---------+--------
+  1 | Sea View Resort   | Goa     |    4.5
+  2 | Mountain Inn      | Manali  |    4.2
+  3 | City Palace Hotel | Delhi   |    4.0
+  4 | Lake View Stay    | Udaipur |    4.7
+(4 rows)
+
+sql_practice=> SELECT * FROM bookings;
+ id | user_id | hotel_id |  check_in  | check_out  | total_price |  status   
+----+---------+----------+------------+------------+-------------+-----------
+  1 |       1 |        1 | 2026-11-01 | 2026-11-04 |    18000.00 | confirmed
+  2 |       1 |        2 | 2026-12-10 | 2026-12-13 |    15000.00 | confirmed
+  3 |       2 |        1 | 2026-11-15 | 2026-11-17 |    12000.00 | cancelled
+  4 |       3 |        4 | 2026-12-20 | 2026-12-24 |    22000.00 | confirmed
+(4 rows)
+
+sql_practice=> SELECT * FROM reviews;
+ id | user_id | hotel_id | rating |    comment     
+----+---------+----------+--------+----------------
+  1 |       1 |        1 |      5 | Great location
+  2 |       2 |        1 |      4 | Nice stay
+  3 |       3 |        4 |      5 | Excellent view
+
+
+
+### Joins
+
+sql_practice=> SELECT
+users.name, bookings.total_price
+FROM bookings
+JOIN users
+ON users.id = bookings.user_id ORDER BY bookings.total_price DESC;
+  name   | total_price 
+---------+-------------
+ Charlie |    22000.00
+ Alice   |    18000.00
+ Alice   |    15000.00
+ Bob     |    12000.00
+
+Normal JOIN is INNER JOIN
+
+INNER JOIN keeps only combinations where the ON condition find a match on both sides
+
+
+##### Left Join
+Purpose: How to keep rows from one table even when there is no match in the other table
+
+SELECT
+    users.name,
+    bookings.total_price
+FROM users
+LEFT JOIN bookings
+    ON users.id = bookings.user_id;
+
+  name   | total_price 
+---------+-------------
+ Alice   |    18000.00
+ Alice   |    15000.00
+ Bob     |    12000.00
+ Charlie |    22000.00
+ David   |            
+
+INNER JOIN
+→ keep only matching rows
+
+LEFT JOIN
+→ keep every row from the LEFT table
+  even if there is no match
+
+
+
+SELECT
+    users.name AS user_name,
+    hotels.name AS hotel_name,
+    hotels.city,
+    bookings.total_price
+FROM bookings
+JOIN users
+    ON bookings.user_id = users.id
+JOIN hotels
+    ON bookings.hotel_id = hotels.id;
+
+
+ user_name |   hotel_name    |  city   | total_price 
+-----------+-----------------+---------+-------------
+ Alice     | Sea View Resort | Goa     |    18000.00
+ Alice     | Mountain Inn    | Manali  |    15000.00
+ Bob       | Sea View Resort | Goa     |    12000.00
+ Charlie   | Lake View Stay  | Udaipur |    22000.00
+
+
+
+
