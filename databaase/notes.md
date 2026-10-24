@@ -915,3 +915,39 @@ JOIN users AS u
     ON b.user_id = u.id
 JOIN hotels AS h
     ON b.hotel_id = h.id;
+
+
+##### WHERE vs HAVING
+Purpose: Understand when flitering happens
+
+WHERE filters individual rows before grouping
+HAVING filters groups after grouping
+
+SELECT
+    users.name,
+    SUM(bookings.total_price) AS total_spent
+FROM users
+JOIN bookings
+    ON users.id = bookings.user_id
+WHERE bookings.total_price > 13000
+GROUP BY users.name;
+
+  name   | total_spent 
+---------+-------------
+ Alice   |    33000.00
+ Charlie |    22000.00
+
+ SELECT
+    users.name,
+    SUM(bookings.total_price) AS total_spent
+FROM users
+JOIN bookings
+    ON users.id = bookings.user_id
+GROUP BY users.name
+HAVING SUM(bookings.total_price) > 10000;
+
+  name   | total_spent 
+---------+-------------
+ Alice   |    33000.00
+ Bob     |    12000.00
+ Charlie |    22000.00
