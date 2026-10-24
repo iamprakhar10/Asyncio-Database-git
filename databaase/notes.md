@@ -858,3 +858,60 @@ JOIN hotels
 
 
 
+##### Group by + Aggregate functions
+Purpose: Instead of returning every row, we summarize rows into groups
+
+Question: How much has each user spent across all bookings?
+
+SELECT
+    users.name,
+    SUM(bookings.total_price) AS total_spent
+FROM users
+JOIN bookings
+    ON users.id = bookings.user_id
+GROUP BY users.name;
+
+name     | total_spent
+---------+------------
+Alice    | 33000
+Bob      | 12000
+Charlie  | 9000
+
+Note: Selected columns must appear in the GROUP BY clause or be used in an aggregate function
+
+Before grouping, the joined rows are:
+Alice   | 18000
+Alice   | 15000
+Bob     | 12000
+Charlie | 9000
+
+Then:
+GROUP BY users.name
+
+forms groups:
+Alice
+ ├─ 18000
+ └─ 15000
+
+Bob
+ └─ 12000
+
+Charlie
+ └─ 9000
+
+Then:
+SUM(bookings.total_price)
+
+is calculated separately for each group.
+
+Also
+SELECT
+    u.name AS user_name,
+    h.name AS hotel_name,
+    h.city,
+    b.total_price
+FROM bookings AS b
+JOIN users AS u
+    ON b.user_id = u.id
+JOIN hotels AS h
+    ON b.hotel_id = h.id;
