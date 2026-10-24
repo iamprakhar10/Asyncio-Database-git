@@ -565,3 +565,74 @@ Eventual Consistency
 Quorums
 
 Atomicity becomes much harder when multiple independent machines participate.
+
+
+In a FastAPI + SQLAlchemy app, you usually do something more like this:
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+DATABASE_URL = "postgresql+psycopg://user:password@localhost:5432/mydb"
+
+engine = create_engine(DATABASE_URL)
+
+SessionLocal = sessionmaker(    
+        bind=engine,    
+        autoflush=False,    
+        autocommit=False,)
+
+
+The important part is:
+engine = create_engine(DATABASE_URL)
+
+
+The engine is the main SQLAlchemy object that knows:
+- how to connect to PostgreSQL
+- what driver to use
+- how to manage the connection pool
+
+
+
+### Our Public pulse app flow
+
+Session and connection are different
+In your app, the connection is that real wire-level link to PostgreSQL. The session is the SQLAlchemy object you use in your code to talk to the DB. It's like a wrapper, almost like a “work session.” The session will grab a connection from the pool only when it actually needs to run SQL. And then when you close()
+
+How do we configure the engine's pool
+
+You pass pool settings to create_engine(). For example, pool size, max overflow, pool timeout, pool recycle, pool pre ping. You do it once when the app starts. The pool then lives inside the engine, and sessions borrow connections from it. A common pattern is pool size maybe like 5 to 20, small overflow, and pool_pre_ping=True to avoid stale connections. If you want, I can show a concrete config for your FastAPI project.
+
+
+# Types of database
+
+## Key Value stores
+(Redis, DynamoDB, Memchached): one key in, one value out 
+
+A Key-Value Store is a type of NoSQL database that uses a simple data model: data is stored as a collection of key-value pairs, where every single item is accessed via a unique identifier (the key).
+
+Coat check: Hand over the ticket, get the coat. But we can't find 
+"All the coats that are black"
+Limited searchability and filtering
+
+How it works - 
+The Key: A unique string or identifier (e.g., user:1005:session, product_price_452). Keys must be unique within the database.
+
+The Value: Can be anything—a simple string, a JSON object, a binary blob, an image, or a serialized data structure. The database engine generally doesn't care what is inside the value; it just treats it as a chunk of data attached to that key.
+
+###### advantages
+Blazing Fast Performance (O(1) Complexity): Because lookups are done via hashing algorithms rather than complex table scans or multi-table joins, finding and fetching data takes constant time, making operations ultra-fast.
+
+High Scalability: They are architected to scale horizontally easily (sharding data across multiple servers), making them ideal for massive web-scale applications.
+
+Flexible Schema (Schemaless): Unlike relational databases (SQL), you don't need to define columns or data types beforehand. Different keys can hold completely different structures of values
+
+###### disadvantages
+
+Limited searchability and filtering. Only finadable by key
+
+Data duplication and consistency challanges - Because there are no foreign keys or relational constraints, applications often duplicate data across multiple keys to optimize for read speed. If that underlying data changes, your application must manually update every single key where it was duplicated, increasing the risk of data inconsistency
+
+Lack of standard quering language
+
+
+
+
+
