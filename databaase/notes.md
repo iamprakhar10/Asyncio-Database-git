@@ -602,8 +602,9 @@ You pass pool settings to create_engine(). For example, pool size, max overflow,
 
 
 # Types of database
-
+Verical scaling is poor in SQL databases
 ## Key Value stores
+NoSQL database
 (Redis, DynamoDB, Memchached): one key in, one value out 
 
 A Key-Value Store is a type of NoSQL database that uses a simple data model: data is stored as a collection of key-value pairs, where every single item is accessed via a unique identifier (the key).
@@ -636,3 +637,113 @@ Lack of standard quering language
 
 
 
+## Document Databases
+Data is stored ad JSON-style documents. One document holds the whole object,
+including nested arrays and sub-objects
+
+While postgreSQL will use our models to store data, a document database might store one product(say e-commerce) as
+
+{
+  "_id": 123,
+  "name": "Laptop",
+  "brand": "ABC",
+  "specs": {
+    "ram": "16GB",
+    "storage": "1TB",
+    "cpu": "M4"
+  },
+  "tags": ["laptop", "electronics"],
+  "reviews": [
+    {
+      "rating": 5,
+      "comment": "Great laptop"
+    },
+    {
+      "rating": 4,
+      "comment": "Good battery"
+    }
+  ]
+}
+
+*Question* - What is the need of these things?
+Because sometimes the natural shape of your data is already:
+one thing
+  ├── nested properties
+  ├── arrays
+  ├── optional fields
+  └── sub-objects
+
+and you usually read that whole thing together.
+
+For example:
+product
+user profile
+blog post
+CMS page
+configuration object
+IoT device record
+event payload
+
+For these, splitting everything into normalized relational tables can sometimes feel unnecessary
+
+In a relational DB, rows in a table generally share the same columns.
+
+In MongoDB, two documents in the same collection can look different
+
+PostgreSQL        MongoDB
+──────────        ───────
+table             collection
+row               document
+column            field
+
+Why not just use PostgreSQL JSON?
+Very good question.
+
+PostgreSQL supports:
+JSONB
+
+so you can absolutely store flexible JSON-like data there too.
+
+That's why nowadays the decision isn't:
+"JSON data → MongoDB."
+
+It's more:
+"Is the application naturally document-oriented enough that a document database gives us simpler modeling and access patterns?"
+
+For many systems, PostgreSQL + JSONB is enough
+
+When would I choose MongoDB?
+I'd seriously consider it if most of these are true:
+- data naturally looks like nested JSON documents
+- documents are mostly accessed independently
+- schema varies significantly between records
+- you frequently retrieve most of a document together
+- relationships between documents are limited
+- flexible schema provides real value
+I'd lean PostgreSQL if:
+- data is highly relational
+- joins are common
+- transactions are important
+- constraints are important
+- correctness across multiple entities matters
+- SQL analytics/querying is important
+The best mental model is:
+Relational databases organize around relationships between entities. Document databases organize around self-contained aggregates/documents.
+
+
+Document database search
+In a document database like MongoDB, searching works very similarly in spirit to PostgreSQL:
+If there is no useful index, MongoDB may scan many documents.
+If there is an index, it uses that index to quickly find matching documents
+Query
+  ↓
+Does useful index exist?
+  ↓
+YES ──→ search index → fetch matching documents
+
+NO ───→ scan documents
+
+
+for ordinary document-field lookup, think: B-tree-style index over document fields
+###### Disadvantages
+Data duplication
