@@ -171,3 +171,106 @@ for metadata, while the actual video comes from:
 https://video.example.com/movies/123/segment001.ts
 https://video.example.com/movies/123/segment002.ts
 https://video.example.com/movies/123/segment003.ts
+
+
+The clean rule is:
+Design API endpoints around business operations, not around where bytes are physically served from.
+
+CDN is primarily an infrastructure/delivery layer, not a replacement for REST/API endpoint design.
+
+
+
+### API Gateway vs Laod balancing
+Can handle the traffic routing(across different microservices)
+
+It takes care of 
+Routing
+Security
+Ratelimiting
+
+Load balancer's job is to manage the traffic between multiple instances of same service
+
+Microservices are separate applications/services, not just separate API endpoints.
+
+Suppose you have one big FastAPI app:
+FastAPI application
+│
+├── /auth/login
+├── /auth/register
+├── /complaints
+├── /notifications
+└── /payments
+
+Those are just different endpoints inside one application. This is a monolith.
+
+With microservices, you split the system into separate services:
+Auth Service
+├── /login
+└── /register
+
+Complaint Service
+├── /complaints
+└── /complaints/{id}
+
+Notification Service
+├── /send-email
+└── /send-sms
+
+And each one can be its own running program/process/container:
+Auth Service container
+Complaint Service container
+Notification Service container
+
+So:
+Endpoint = one route inside an API.
+Microservice = an independent application that usually exposes several endpoints.
+
+For example:
+Client
+  ↓
+API Gateway
+  ├── /auth/* ──────────► Auth Service
+  │                        ├── POST /login
+  │                        └── POST /register
+  │
+  ├── /complaints/* ────► Complaint Service
+  │                        ├── POST /complaints
+  │                        ├── GET /complaints/{id}
+  │                        └── PATCH /complaints/{id}
+  │
+  └── /notifications/* ─► Notification Service
+                           ├── POST /email
+                           └── POST /sms
+
+A big reason they're called microservices is that each service owns a relatively focused business responsibility.
+
+For example, instead of one enormous application handling:
+users + auth + complaints + payments + notifications
+
+you might have:
+Auth Service
+Complaint Service
+Payment Service
+Notification Service
+
+Each can then be:
+- deployed independently
+- scaled independently
+- restarted independently
+- developed by different teams
+- potentially use different databases or technologies
+For example, if notifications are under huge load:
+Auth Service
+   2 instances
+
+Complaint Service
+   3 instances
+
+Notification Service
+   10 instances
+
+You don't need to scale everything equally.
+
+Many endpoints does not mean microservices.
+
+Microservices means many independently running applications/services that communicate with each other.
