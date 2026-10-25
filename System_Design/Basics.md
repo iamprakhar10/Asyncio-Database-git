@@ -192,6 +192,9 @@ Load balancer's job is to manage the traffic between multiple instances of same 
 
 Microservices are separate applications/services, not just separate API endpoints.
 
+API Gateway chooses the service.
+Load Balancer chooses the instance.
+
 Suppose you have one big FastAPI app:
 FastAPI application
 │
