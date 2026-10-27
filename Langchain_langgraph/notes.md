@@ -90,3 +90,36 @@ However we can't cover all of the expressiveness with JSON schemas with reular e
 CFG(context free grammar) = regular expression + stack
 
 It took time for OpenAI to build up this tree for inference(also supports recursio in deep nesting)
+
+And due to these works it gets the job done 100% of time(format of the output)
+
+#### output parser
+Prompt: "Return JSON"
+        ↓
+LLM
+        ↓
+Maybe valid JSON
+Maybe malformed JSON
+Maybe extra explanation
+        ↓
+Output Parser
+        ↓
+Clean/parse/validate it
+
+
+OLD:
+Generate anything → parse/fix afterward
+
+NOW:
+Specify schema → constrain generation → validate result
+
+So parsers were needed to:
+- extract JSON from text
+- remove extra prose
+- convert strings into Python objects
+- validate fields
+- sometimes retry when formatting was wrong
+Output parsers still matter for older/local models, custom text formats, streaming, and cleanup—but for normal JSON structured output, they are no longer the primary solution.
+
+
+#### Chains
