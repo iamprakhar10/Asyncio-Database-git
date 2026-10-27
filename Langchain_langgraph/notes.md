@@ -123,3 +123,87 @@ Output parsers still matter for older/local models, custom text formats, streami
 
 
 #### Chains
+Output of one component becomes the Input of the other 
+Sequential  = A → B → C
+Runs components one after another. Output of one becomes input to the next.
+
+
+Parallel    = A → [B, C, D]
+Sends the same/input-derived data to multiple components concurrently, then combines their outputs. 
+Eg-> Run sentiment analysis, summarization, and classification at the same time.
+               ┌──→ Step A ──┐
+Input ─────────┼──→ Step B ──┼──→ Combined Result
+               └──→ Step C ──┘
+
+chain = RunnableParallel(
+    summary=summary_chain,
+    sentiment=sentiment_chain,
+)
+
+Conditional = A → B OR C OR D
+Chooses which branch to execute based on a condition or routing decision
+Eg-> execute based on a condition or routing decision.	Route a query to coding, research, or support pipeline.
+
+In LangChain this can be implemented with runnable branching/routing; for larger, stateful branching workflows, LangGraph is usually the better abstraction.
+
+#### Runnables
+Langchain dfines runnables as a "unit of work" that can be invoked, streamed, batched, transformed, and composed.
+
+Many things can behave like runnables:
+Prompt
+Model
+Retriever
+Parser
+Custom Python function
+Entire chain
+
+So instead of every component having a completely different way of being executed, they can all behave roughly like:
+
+component.invoke(input)
+
+A Runnable gives every LangChain component a common Input → Output interface so components can be composed, streamed, batched, run asynchronously, retried, and reused consistently
+
+await chain.ainvoke(...)
+means:
+run it asynchronously so other async work can proceed while this is waiting
+
+TASK-SPECIFIC RUNNABLES
+= "What work should happen?"
+
+LLM
+Retriever
+Prompt
+Parser
+
+
+RUNNABLE PRIMITIVES
+= "How should that work be connected?"
+
+1. RunnableSequence
+A → B → C
+
+2. RunnableParallel
+       ┌→ B
+A ─────┼→ C
+       └→ D
+
+Runs multiple Runnables concurrently and combines their results. RunnableSequence and RunnableParallel are currently LangChain's two main composition primitives.
+
+
+3. RunnableLambda
+
+Turns your normal Python function into a Runnable:
+def clean(x):
+    return x.strip()
+
+clean_runnable = RunnableLambda(clean)
+
+Now it can participate in a chain: prompt | model | clean_runnable
+
+4. RunnablePassthrough
+
+Passes input through unchanged, useful when you need to preserve data while computing something else.
+
+For example in RAG
+
+Task-specific Runnables do the work. Runnable primitives orchestrate the work.
