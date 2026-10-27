@@ -27,4 +27,66 @@ Instead of tightly coupling your code to one model provider, LangChain gives you
 
 For structured output, sometimes LangChain adds formatting instructions to the prompt, but not always. In modern models, the better path is often to use the model provider’s native structured-output or tool-calling API instead of relying only on prompt text.
 
-Model outputs should match the JSON schema supplied by us
+Model outputs should match the JSON schema supplied by us.
+Structured uotput can be understood as difference between suggesting to the model vs constraining it.
+It's not just about asking nicely 
+
+They used constrained decoding, let's talk about 
+- LLM inference
+- Token Masking - Constrains which tokens can be picked at the very end of samppling. When sampling JSON for our schemas , we need to update the masked tokensat every step of inference.
+- Subset of JSON schemas
+
+| Step | Input                         | Mask                   | Sampled |
+|------|-------------------------------|------------------------|---------|
+| 0    | `USER_INPUT`                  | `{`, `\n`, `\n\t`      | `{`     |
+| 1    | `USER_INPUT + {`              | `\n`, `\n\t`, `"`, `"val` | `\n\t` |
+| 2    | `USER_INPUT + { + \n\t`       | `\t`, `"`, `"val`, `"v`  | `"val` |
+| 3    | `USER_INPUT + { + \n\t + "val` | `u`, `ue`             | `ue`      |
+
+
+
+| GPU time                              | CPU time                     |
+|---------------------------------------|------------------------------|
+| Calculate probabilities for batch 1   |                              |
+|                                       | Calculate mask for batch 2   |
+| Calculate probabilities for batch 2   |                              |
+|                                       | Calculate mask for batch 3   |
+| Calculate probabilities for batch 3   |                              |
+
+
+We need the mask to happen in about same amount of time as calculating probabilities(Time betwen tokens)
+
+A naive solution to this problem would involve determining these valid tokens from the current state at every step of inference.
+
+So we want to precompute as much work as possible and then reuse it when sampling to make mass computation more like a lookup and less like a lot of work.
+
+Just like we can build index in our database to speed up our queries, we can build up our index with specific JSON schema that we supply to make fetching these masks very fast during inference
+
+Lot of work that goes into producing this index from JSON schema
+
+
+1. First we convert JSON schema into a grammar(formal specification of a language)
+
+2. Once we have a grammar, we can create a parser(a program that can check strings and see if they're part of this language). Think parser as a program that takes in a JSON blob and tells us does this match the schema or not
+
+3. Once we have the parser, we can iterate over all of the tokens in our vocabulary and all of the states that are possible in the parser, and this will determine which tokens are valid
+
+4. This work lets us build an index. Our index is actually a tree(preficx based data structure that allows O(1) lookups).
+
+
+
+During inference we are running our parser, building up some states and every time we'll traverse this tree ti find the leaf. The leaf node will tell us what the mask is for the next step
+
+Generating these indexes is computationally exppensive(we have to go over all of the possible states). So we just do it once and then cache it later for faster lookups
+
+Tradeoff: Waiting a little longer for our first request whilewe are developing
+The following queries are fast
+
+##### Supported grammars with structured outputs
+Regular expressions(regex) work for simple, depth-limited schemas
+
+However we can't cover all of the expressiveness with JSON schemas with reular expressions. They are missing basically the memory needed to storeinformations about past lookups which is important
+
+CFG(context free grammar) = regular expression + stack
+
+It took time for OpenAI to build up this tree for inference(also supports recursio in deep nesting)
