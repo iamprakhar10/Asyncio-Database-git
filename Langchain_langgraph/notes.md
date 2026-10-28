@@ -207,3 +207,127 @@ Passes input through unchanged, useful when you need to preserve data while comp
 For example in RAG
 
 Task-specific Runnables do the work. Runnable primitives orchestrate the work.
+
+
+
+
+
+
+
+
+
+
+
+
+# LangGraph 
+LangGraph is not industry standard, there is currently no universal standard for agent orchestration yet
+
+It's job is to control what happens around the LLM: state, branching, loops, retries, persistence, human approval, resumability, streaming, and long-running execution.
+
+Even a simple chain is manageable:
+User
+ ↓
+Retriever
+ ↓
+LLM
+ ↓
+Parser
+
+But real agents start looking like:
+                    ┌──── Search Web ────┐
+                    │                    │
+User → Understand → Decide → Call DB ────┤
+                    │                    │
+                    ├──── Ask Human ─────┤
+                    │                    │
+                    └──── Retry Tool ────┘
+                              │
+                              ↓
+                           Continue
+                              │
+                              ↓
+                            Finish
+
+Now you need to answer:
+- What state does the agent currently have?
+- Which node runs next?
+- What if a tool fails?
+- What if the process crashes halfway through?
+- How do I resume?
+- How do I pause for human approval?
+- How do I avoid repeating a payment/refund/tool call?
+- How do I loop back to an earlier step?
+- How do I preserve conversation/task state?
+You can write all of this yourself, but it quickly becomes complicated.
+
+That is the problem LangGraph tries to solve.
+
+LangGraph = State + Nodes + Edges
+
+A Node perform some work. A node can just be normal Python code, an LLM call, a tool call, or even another graph.
+
+Edges determine what happens next
+
+State is the information moving through the graph.
+
+state = {
+    "messages": [...],
+    "user_id": "...",
+    "documents": [...],
+    "tool_results": [...],
+    "status": "waiting_for_approval"
+}
+
+Every node reads some state and updates it.
+
+agents often need:
+          ┌──────────────┐
+          ↓              │
+A → B → Decision → C → Check
+        │                 │
+        └→ Human          │
+             ↓            │
+           Resume ────────┘
+
+Now you have:
+
+loops + persistent state + branching + interruptions + resumability.
+
+That's where a graph/state-machine abstraction becomes much cleaner.
+
+#### One of its biggest features: durable execution
+
+Imagine:
+Step 1: Retrieve customer
+Step 2: Analyze refund
+Step 3: Human approves
+Step 4: Issue refund
+Step 5: Email customer
+
+At Step 3 the process may pause for two hours waiting for a human.
+
+You don't want a Python function sitting there:
+wait_for_two_hours()
+
+
+Instead LangGraph can persist/checkpoint the state:
+Customer found ✓
+Analysis done ✓
+
+──── SAVED STATE ────
+
+Waiting for human...
+
+        ↓ later
+
+Resume
+
+        ↓
+
+Issue refund
+        ↓
+Send email
+
+LangGraph explicitly provides persistence, durable execution and human-in-the-loop functionality for this kind of workflow. GitHub
+
+This is a much bigger reason to use LangGraph than just drawing pretty graphs.
