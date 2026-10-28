@@ -330,4 +330,78 @@ Send email
 
 LangGraph explicitly provides persistence, durable execution and human-in-the-loop functionality for this kind of workflow. GitHub
 
-This is a much bigger reason to use LangGraph than just drawing pretty graphs.
+**** This is a much bigger reason to use LangGraph than just drawing pretty graphs. ****
+
+#### Another big feature: human-in-the-loop
+Suppose an agent wants to transfer ₹100,000.
+
+You probably don't want:
+LLM decides
+   ↓
+transfer_money()
+
+You want:
+LLM proposes transfer
+        ↓
+┌─────────────────────┐
+│ HUMAN APPROVAL      │
+└──────────┬──────────┘
+           │
+      ┌────┴────┐
+      ↓         ↓
+   Approve    Reject
+      ↓
+ Execute
+
+LangGraph supports pausing and resuming workflows around these intervention points.
+
+
+#### You can even build the graph yourself
+For example:
+state = {}
+current_node = "reason"
+while current_node != "END":
+    if current_node == "reason":
+        state = reason(state)
+        current_node = choose_next(state)    
+    elif current_node == "search":
+        state = search(state)        
+        current_node = "reason"    
+    elif current_node == "human":
+        save_state(state)        
+        break
+
+
+That is essentially the kind of orchestration problem LangGraph helps formalize.
+
+As your application gets more complicated, you eventually start implementing:
+state persistence
+checkpointing
+branching
+interrupts
+resume
+streaming
+retries
+subgraphs
+parallel execution
+error handling
+
+Then you may realize:
+"I'm slowly rebuilding LangGraph."
+
+That's usually the point where a framework becomes useful.
+
+LangGraph is used because it eases us from the work of writing glue code of cranch, loop, retries etc
+
+Langchain doesn't provide sunctionality of pause, fault tolerance/error handling
+
+LangGraph allows Nested workflows, also used for milti agent  
+
+1. State = the shared data for the workflow right now, like messages, tool results, counters, status.
+
+2. Node = a unit of work that reads state and returns updates, e.g. “call LLM” or “search DB.”
+
+3. Edge = decides which node runs next; can be fixed or conditional.
+
+4. Reducer = defines how a node’s update is merged into existing state.
+Without a reducer, an update might simply overwrite the old value.
