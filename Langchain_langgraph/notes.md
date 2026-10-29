@@ -587,6 +587,54 @@ When we invoke a graph with checkpointer attached, ttwo things happen:
 
 LangGraph provides different checkpointer implementations depending on your infrastructure needs:
 
-MemorySaver: Stores states in local RAM. Perfect for local development, testing, and scripts, but data is lost when the Python process restarts.
+InMemorySaver: Stores states in local RAM. Perfect for local development, testing, and scripts, but data is lost when the Python process restarts.
 
 SqliteSaver / PostgresSaver: Persists states to a relational database. This is what you use in production multi-container architectures to ensure state survives server reboots and scales across multiple app instances.
+
+
+graph = StateGraph(JokeState)
+
+graph.add_node('generate_joke', generate_joke)
+graph.add_node('generate_explanation', generate_explanation)
+
+graph.add_edge(START, 'generate_joke')
+graph.add_edge('generate_joke', 'generate_explanation')
+graph.add_edge('generate_explanation', END)
+
+checkpointer = InMemorySaver()
+
+workflow = graph.compile(checkpointer=checkpointer)
+
+config1 = {"configurable": {"thread_id": "1"}}
+workflow.invoke({'topic':'pizza'}, config=config1)
+
+list(workflow.get_state_history(config1)) => This will retieve evrything stroed
+
+When using HITL, LangGraph interrupts the flow unitl human has dine his job, and then resumes it again
+
+
+#### Streaming
+In LLMs, streaming means the model starts sending tokens as soon as they are generated.
+
+Streaming doesn't change how the graph executes.
+It just lets your application observe execution while it's happening.
+
+Streaming means receiving intermediate execution events while the graph is still running, instead of waiting for the whole graph to finish.
+
+LangGraph supports several useful stream modes. 
+Mode	        What you receive
+updates	      Only state updates produced by each node
+values	      Full accumulated graph state after each step
+messages      LLM message/token chunks + metadata
+custom	      Your own custom progress events
+checkpoints   Checkpoint events
+tasks	      Node/task start and completion events
+debug	      Detailed execution information
+
+
+Important for human like conversations
+Excellent for multi-modal UIs
+We can cancel midway saving tokens
+
+stream = graph.stream(input, stream_mode="messages"):
+-> stream is a generator object here, which yield message chunk AND metadata
