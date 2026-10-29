@@ -476,3 +476,28 @@ So:
 LangGraph decides what can run concurrently; Python/runtime mechanisms decide how that concurrency is executed.
 
 And if your nodes are CPU-heavy Python calculations, threads may not speed them up much because of the GIL. Then you’d want processes, native code, GPUs, or distributed workers instead.
+
+#### Iterative workflow
+
+
+#### RAG Safety
+. RAG (Retrieval-Augmented Generation) can be engineered to be completely secure and private.
+
+The misconception that RAG inherently compromises data safety usually comes from looking at the "naive tutorial" version of RAG—where someone drops every internal document into a public cloud vector store and sends it to a public API.
+
+When built with proper enterprise boundaries, RAG is one of the safest ways to give an LLM private context without exposing your core database. Here is how a fully secure, airtight RAG architecture is built:
+
+1. Host Your Own Vector Database
+In RAG, your documents don't go to the LLM provider for training; they live in a vector database (like Qdrant, Milvus, or pgvector inside your own PostgreSQL database).If you host your vector database within your own secure VPC or on-premise server, your raw documents and embeddings never leave your infrastructure.
+
+2. Enforce Access Control at Retrieval Time
+To prevent unauthorized data leaks, you don't let the vector search pull everything blindly. You attach metadata tags to your document chunks (e.g., department: HR, clearance_level: confidential).
+
+When a user queries the system, your vector search query includes strict metadata filters: WHERE department = 'Engineering' AND user_clearance >= chunk.clearance.
+
+The system physically cannot retrieve a document the user isn't allowed to see.
+
+3. Pair It with Local InferenceIf you pair your private, access-controlled vector database with a self-hosted LLM running locally via vLLM, your entire data loop—from document parsing to embedding to final text generation—happens entirely on hardware you own and control. Zero bytes touch the public internet.
+
+RAG is just a design pattern: 
+Search documents --> Inject into prompt --> Generate answer. Because you build and configure every piece of that pipeline, its security is entirely up to your architecture.
