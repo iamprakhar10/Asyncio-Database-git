@@ -477,6 +477,58 @@ LangGraph decides what can run concurrently; Python/runtime mechanisms decide ho
 
 And if your nodes are CPU-heavy Python calculations, threads may not speed them up much because of the GIL. Then you’d want processes, native code, GPUs, or distributed workers instead.
 
+
+#### Conditional edges
+
+1. With an explicit mapping
+graph.add_conditional_edges(
+        "evaluate",
+        route_evaluation,
+        {        
+                "approved": END,
+                "needs_improvement": "optimize"    
+        }
+)
+
+
+Here route_evaluation(state) returns a logical label:
+def route_evaluation(state):
+    if state["score"] > 0.8:
+        return "approved"
+    return "needs_improvement"
+
+
+LangGraph then translates that label using the mapping:
+"approved"           → END
+"needs_improvement"  → "optimize"
+
+So the router function does not need to know actual graph node names.
+2. Without a mapping
+
+graph.add_conditional_edges(
+    "calculate_discriminant",
+    check_condition
+)
+
+
+Now check_condition(state) must usually return the actual destination node name directly:
+def check_condition(state):
+    if state["discriminant"] > 0:
+        return "two_roots"
+    elif state["discriminant"] == 0:
+        return "one_root"    
+    else:
+        return "no_real_roots"
+
+
+So:
+check_condition()
+       ↓
+returns "two_roots"
+       ↓
+LangGraph goes directly to node "two_roots"
+
+The mapping version is often cleaner because your routing logic can return semantic decisions like "approved" instead of being tightly coupled to graph node names
 #### Iterative workflow
 
 
@@ -501,3 +553,40 @@ The system physically cannot retrieve a document the user isn't allowed to see.
 
 RAG is just a design pattern: 
 Search documents --> Inject into prompt --> Generate answer. Because you build and configure every piece of that pipeline, its security is entirely up to your architecture.
+
+###### adding reducers
+import operator
+
+->state
+class TweetState(TypedDict):
+        tweet_history: Annotated[list[str], operator.add]
+        feedback_history: Annotated[list[str], operator.add]
+
+
+Now any change in tweet history will not replace the old value, it will append the new value
+
+#### Persistence
+Persistence in LnagGraph refers to the ability to save and restore the state of a workflow over time
+
+Checkpointers in persistance
+checkpointer is the persistence layer that automatically saves the exact state of your graph after every single execution step (called a "super-step")
+
+Without a checkpointer, a langGraph aplication is stateless, once a request finishes or server restarts, all memory of what happened is lost.
+ Checkpointers ebnable 4 critical production features
+
+1. Persistance and fault tolerance (we applied without LangGraph in ABTO)
+2. HITL - Checkpointers make it trivial to pause a graph right before a sensitive action, wait foro human to approve, and then resume the graph from that exact saved state
+3. Time travel and Debugging - Because every step is saed with a unique identifier, we can "rewind" our graph to an earlier state, inspect what went wrong, or even fork execution down a braind-new path from a past checkpoint
+4. Multi-Turn Conversational Threads - By passing a thread_id in runtime cofiguration, the graph pulls the previous state associated with that thread, giving our agent persistent memory across multiple user interactions
+
+##### Persistence under the hood
+When we invoke a graph with checkpointer attached, ttwo things happen:
+
+1. State serialization: LangGraph takes current state(defined by TypedDict or Pydantic model) and serializes it.
+2. Key value Storage: It writes that state to storage backend using a composite key consisting of a thread_id and a monotonic checkpoint id
+
+LangGraph provides different checkpointer implementations depending on your infrastructure needs:
+
+MemorySaver: Stores states in local RAM. Perfect for local development, testing, and scripts, but data is lost when the Python process restarts.
+
+SqliteSaver / PostgresSaver: Persists states to a relational database. This is what you use in production multi-container architectures to ensure state survives server reboots and scales across multiple app instances.
