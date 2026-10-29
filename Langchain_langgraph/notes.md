@@ -405,3 +405,74 @@ LangGraph allows Nested workflows, also used for milti agent
 
 4. Reducer = defines how a node’s update is merged into existing state.
 Without a reducer, an update might simply overwrite the old value.
+___________________
+#### LangGraph Execution model
+LangGraph uses a Pregel-inspired, bulk-synchronous execution model. The important idea is that the graph executes in discrete rounds called supersteps, rather than recursively calling nodes however they want. LangChain
+
+Suppose you define:
+          ┌──> B ──┐
+START → A ┤        ├→ D → END
+          └──> C ──┘
+
+Execution is roughly:
+Initial State
+     │
+     ▼
+────────────────────
+SUPERSTEP 1
+────────────────────
+     Node A
+       │
+       │ returns state update
+       ▼
+   apply reducer(s)
+
+────────────────────
+SUPERSTEP 2
+────────────────────
+   Node B      Node C
+      │          │
+      └────┬─────┘
+           │
+     both return updates
+           │
+           ▼
+      reducers merge them
+
+────────────────────
+SUPERSTEP 3
+────────────────────
+          Node D
+            │
+            ▼
+           END
+
+Nodes scheduled in the same superstep can execute concurrently. Their state writes are collected and committed at the superstep boundary, so one parallel node does not simply see another parallel node's partially completed update
+
+
+Parallel nodes can READ the whole state.        
+✓
+
+Parallel nodes should RETURN only their updates, not the whole state. ✓
+
+Parallel nodes writing the same key
+without a reducer                              
+✗
+
+#### LangGraph parallelism
+LangGraph parallelism is not claiming some magical new kind of parallelism.
+
+LangGraph provides the orchestration semantics:
+Which nodes are runnable?
+Which ones can run together?
+When do we wait?
+When do we merge state?
+What happens if one fails?
+What runs next?
+
+The underlying concurrency is still implemented using ordinary programming/runtime mechanisms like futures, executors, threads, or async tasks.
+
+So:
+LangGraph decides what can run concurrently; Python/runtime mechanisms decide how that concurrency is executed.
+
+And if your nodes are CPU-heavy Python calculations, threads may not speed them up much because of the GIL. Then you’d want processes, native code, GPUs, or distributed workers instead.
