@@ -1,5 +1,13 @@
 # RAG
+ALGORITHMS  LIKE HNSW DON'T GUARANTEE THAT "TOP-K" RETRIEVED DOCUMENTS ARE REALLY THE BEST MATCHING K
+(APPROXIMATE NEAREST NEIGHBOUR)
 
+Increasing average degree of nodes in HNSW will make it slightly slow but slightly more accurate. We pick a parameter called M that limits how many neighbors each node keeps. It's an upper bound, not an exact number. Some nodes end up with fewer. Higher M means more connections, better recall, but more memory and slower building. So you are in control of how dense the web can be, not of the exact links per node.
+
+efSearch is how many possible routes you're willing to consider before choosing.
+First, it drops into the bottom layer at the node from above. It computes that node’s neighbors and adds the promising ones to a priority queue ordered by closeness. After that, it repeatedly takes the current closest candidate, expands its neighbors, and updates the queue. efSearch just sets how wide that whole process is allowed to be.
+
+r. It stops when the closest thing left to explore is already worse than the worst of your current efSearch results. Then you return the top K out of those. So it's "stop when nothing left looks promising," not "exhaust every node."
 #### Why basic RAG is not Enough
 Query: What is the refund policy for SKU XJ-4821?
 
@@ -419,3 +427,28 @@ Cross-encoder:
 "Carefully judge each surviving query-document pair."
 
 And yes, in a production pipeline, reducing the number of documents sent to the expensive cross-encoder is a major practical reason for doing this fusion and cutoff step.
+
+## Cross Encoder Reranker
+Now suppose:
+Query:
+How do I fix error E104?
+
+Document:
+E104 occurs when the authentication token expires.
+Generate a new token.
+
+A cross-encoder receives them together:
+[CLS]
+How do I fix error E104?
+[SEP]
+E104 occurs when the authentication token expires.
+Generate a new token.
+[SEP]
+
+The Transformer processes the entire thing simultaneously.
+
+Then it produces something like:
+score(q,d)=0.96
+
+So the Cross encoder reranker is answering a much easier and more precise question:
+Given this exact query and this exact document, how relevant is this document?
