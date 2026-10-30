@@ -7,7 +7,10 @@ Increasing average degree of nodes in HNSW will make it slightly slow but slight
 efSearch is how many possible routes you're willing to consider before choosing.
 First, it drops into the bottom layer at the node from above. It computes that node’s neighbors and adds the promising ones to a priority queue ordered by closeness. After that, it repeatedly takes the current closest candidate, expands its neighbors, and updates the queue. efSearch just sets how wide that whole process is allowed to be.
 
-r. It stops when the closest thing left to explore is already worse than the worst of your current efSearch results. Then you return the top K out of those. So it's "stop when nothing left looks promising," not "exhaust every node."
+It stops when the closest thing left to explore is already worse than the worst of your current efSearch results. Then you return the top K out of those. So it's "stop when nothing left looks promising," not "exhaust every node."
+
+###### efSearch value
+Often around twenty to two hundred, but it depends. Start with maybe fifty, then test one hundred and two hundred while measuring quality and speed. Keep it at least as big as K. Increase it until extra accuracy isn't worth the extra delay.
 #### Why basic RAG is not Enough
 Query: What is the refund policy for SKU XJ-4821?
 
@@ -452,3 +455,119 @@ score(q,d)=0.96
 
 So the Cross encoder reranker is answering a much easier and more precise question:
 Given this exact query and this exact document, how relevant is this document?
+
+
+
+
+
+## ADVANCED CHUNKING
+#####  Basic fixed-size chunking
+A simple system might say:
+chunk_size = 500 tokens
+overlap = 50 tokens
+###### But fixed-size chunking has a deeper problem
+Consider this document:
+= = = = = = = = = = = = = = = = = = = = = = = = 
+Enterprise Plan
+Enterprise customers receive priority support.
+Refunds are available within 30 days.
+Business Plan
+Business customers receive standard support.
+Refunds are available within 14 days.
+= = = = = = = = = = = = = = = = = = = = = = = = 
+
+A fixed 500-token boundary could accidentally produce:
+Chunk 1:
+
+Enterprise customers receive priority support.
+Refunds are available within 30 days.
+Business customers receive standard support.
+
+Now ask:
+How long is the Business Plan refund period?
+
+The chunk contains "Business customers" and "30 days".
+
+That can be dangerous
+The LLM might incorrectly associate them.
+
+So the real goal is not:
+Make chunks exactly 500 tokens.
+
+It's:
+Create chunks that represent coherent units of meaning.
+
+
+##### Semantic boundaries
+
+A better chunker tries to respect things such as:
+headings
+paragraphs
+sections
+sentences
+tables
+code blocks
+
+Instead of blindly cutting you'd prefer:
+Section A
+────────────
+
+Section B
+────────────
+
+Section C
+────────────
+
+and chunk at those boundaries.
+
+This is sometimes loosely called semantic chunking.
+
+##### But small coherent chunks create another problem
+SMALL CHUNKS =>
+Advantages:
+precise retrieval
+less irrelevant text
+
+Disadvantages:
+lose surrounding context
+
+LARGE CHUNKS =>
+Advantages:
+more context
+
+Disadvantages:
+harder retrieval
+more noise
+more tokens
+
+###### Parent child retrieval
+
+Parent P1
+   │
+   ├── Child C1: backups run nightly
+   │
+   ├── Child C2: retained for 14 days
+   │
+   ├── Child C3: uploaded to S3
+   │
+   └── Child C4: restoration procedure
+
+Match with child but give the whole parent to LLM
+
+It separates two requirements that were fighting each other.
+
+Before:
+One chunk must be:
+
+small enough to retrieve well
+AND
+large enough to answer well
+
+Those requirements conflict.
+
+Parent-child retrieval says:
+Retrieval representation
+        ≠
+Generation context
+
+That's a very important advanced-RAG principle.
