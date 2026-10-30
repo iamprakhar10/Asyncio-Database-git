@@ -393,3 +393,29 @@ because they contain more words.
 Two important hyperparameters:
 k1 → TF saturation
 b  → document-length normalization
+
+
+## RRF - Ranked based fusion
+RRF ignores the raw similarity/BM25 scores and uses only the ranks.
+So a document that ranks well in both retrievers tends to beat a document that ranks highly in only one.
+
+
+RRF(d) = sum_r [1 / {k+{rank}_r(d)}]
+
+Retriever 1 ─┐
+             │
+Retriever 2 ─┼→ RRF → unified candidate ranking → top N → reranker
+             │
+Retriever 3 ─┘
+
+
+The cross-encoder then does the more accurate final relevance judgment.
+
+So the distinction is:
+RRF:
+"Combine multiple rough retrieval opinions."
+
+Cross-encoder:
+"Carefully judge each surviving query-document pair."
+
+And yes, in a production pipeline, reducing the number of documents sent to the expensive cross-encoder is a major practical reason for doing this fusion and cutoff step.

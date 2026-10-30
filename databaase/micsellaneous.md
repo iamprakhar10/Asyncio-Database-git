@@ -387,3 +387,85 @@ Imagine you have a database of 10 million documents and a user searches for the 
 Without an inverted index (The Full-Text Scan Problem): The database has to perform a linear scan. It must open Document 1, read all its text, check if "database" is inside, close it, and repeat this process sequentially for all 10 million documents. For large datasets, this takes seconds or minutes—completely unusable for real-time applications.
 
 With an inverted index: The database treats the search like looking up a word in the alphabetical index at the back of a textbook. It goes straight to the entry for "database", reads a pre-computed list of document IDs that contain that word, and returns them instantly.
+
+An inverted index is basically the data structure that makes keyword search like BM25 fast.
+
+Suppose you have:
+D1: authentication token expired
+D2: reset password token
+D3: authentication failed
+
+A naïve search for "authentication" could scan every document:
+D1 → check
+D2 → check
+D3 → check
+
+That becomes terrible with millions of documents.
+
+Instead, build an inverted index:
+authentication → D1, D3
+token          → D1, D2
+expired        → D1
+reset          → D2
+password       → D2
+failed         → D3
+
+Now if the query is:
+authentication token
+
+the search engine can directly look up:
+authentication → D1, D3
+token          → D1, D2
+
+and work mainly with:
+D1, D2, D3
+
+instead of scanning the entire corpus.
+
+The name inverted comes from reversing the normal relationship.
+
+Normally you think:
+document → words
+
+The index stores:
+word → documents
+
+That reversal is the key idea.
+
+For BM25, a real inverted index stores more than just document IDs. Conceptually it may store:
+token
+  ↓
+[
+  (document_id, term_frequency),
+  (document_id, term_frequency),
+  ...
+]
+
+For example:
+authentication
+  ↓
+[
+  (D1, 1),
+  (D3, 1),
+  (D8, 4)
+]
+
+The search engine can also know:
+df(authentication) = 3
+
+because the posting list has 3 documents.
+
+That helps calculate IDF.
+
+It also stores document-length information somewhere, so BM25 has essentially everything it needs:
+inverted index
+    │
+    ├── which documents contain the term
+    ├── how many times it occurs
+    └── document frequency
+
+document metadata
+    │
+    └── document length
+
+Then BM25 calculates the ranking.
