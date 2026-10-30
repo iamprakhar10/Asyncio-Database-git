@@ -303,3 +303,93 @@ For an entire query, sum over the query terms:
 score(d,q) = sum_[t in q]{TF(t,d)* IDF(t)}
 
 *it is almost entirely pre-computed before you ever run a query.*
+
+1. Done Once at "Indexing Time" (The Heavy Lifting)
+When you insert or save a document into your database, the system runs its text-processing pipeline once:
+
+Term Frequency (TF): It counts how many times each word appears in that specific document and stores those numbers.
+
+Inverse Document Frequency (IDF): The system tracks global statistics across your entire corpus (e.g., total document count, and how many documents contain the word "database"). It pre-calculates the IDF math for every unique word and stores it in a dictionary.
+
+All of these pre-calculated TF-IDF values (or the raw components needed to compute them) are baked straight into the inverted index we talked about earlier.
+
+##### TF-IDF has 2 major Problems
+###### Problem 1: TF grows too aggressively
+Suppose:
+D1:
+E104 occurs when the token expires.
+
+and:
+D2:
+E104 E104 E104 E104 E104 E104 E104 E104
+
+With naïve TF-IDF:
+D2 gets 8× the TF contribution
+
+But after seeing "E104" a few times, additional repetitions shouldn't increase confidence linearly.
+
+BM25 introduces:
+TF saturation
+Conceptually:
+term count
+    │
+score
+    │
+    │              ________
+    │          ___/
+    │       __/
+    │    __/
+    │ __/
+    └──────────────────────
+          frequency
+
+The first occurrence matters a lot.
+The second helps.
+The tenth occurrence adds almost nothing.
+That is much more realistic.
+
+###### Problem 2: document length
+Consider:
+D1:
+E104 means expired token.
+
+and:
+D2:
+5000-word authentication manual containing E104 once.
+
+Both contain E104 once.
+
+But the first document is extremely focused.
+
+The second mentions it somewhere in a huge document.
+
+BM25 accounts for this using:
+document-length normalization
+A shorter document with concentrated query terms gets relatively more credit.
+
+BM25 is not a keyword search(people use this shorthand).
+*BM25 is really a RANKING FUNCTION*
+
+It doesn't merely ask:
+Does keyword exist, It produces a relevance score based on:
+
+term occurrence
++
+term rarity
++
+frequency saturation
++
+document length
+
+BM25 rewards matching query terms.
+
+Rare terms matter more using IDF.
+
+Repeated terms help, but their benefit saturates.
+
+Long documents are normalized so they don't win merely
+because they contain more words.
+
+Two important hyperparameters:
+k1 → TF saturation
+b  → document-length normalization
