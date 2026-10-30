@@ -371,3 +371,19 @@ That's one reason files are useful: you can process a 100 GB file without storin
 RAM storing the data is one resource. An open file is an OS-managed I/O resource with its own state and file descriptor.
 
 And this same idea later applies to database connections, network sockets, HTTP connections, etc. That's why context managers are used for much more than files.
+
+
+
+
+
+### Inverted Index
+
+A standard database index (a forward index) maps a document or row to its contents (Document -> Words).
+
+An inverted index flips that relationship entirely, mapping each unique word (term) to the list of documents where it appears (Word -> Documents).
+
+Imagine you have a database of 10 million documents and a user searches for the word "database".
+
+Without an inverted index (The Full-Text Scan Problem): The database has to perform a linear scan. It must open Document 1, read all its text, check if "database" is inside, close it, and repeat this process sequentially for all 10 million documents. For large datasets, this takes seconds or minutes—completely unusable for real-time applications.
+
+With an inverted index: The database treats the search like looking up a word in the alphabetical index at the back of a textbook. It goes straight to the entry for "database", reads a pre-computed list of document IDs that contain that word, and returns them instantly.
