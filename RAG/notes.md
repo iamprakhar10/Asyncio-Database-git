@@ -571,3 +571,163 @@ Retrieval representation
 Generation context
 
 That's a very important advanced-RAG principle.
+
+### Semantic chunking
+Fixed-size chunking:
+"Every 500 tokens, cut."
+
+Semantic chunking:
+"Cut when the meaning/topic changes."
+
+Take each sentence or paragraph:
+P1 → embedding e1
+P2 → embedding e2
+P3 → embedding e3
+P4 → embedding e4
+
+Now compare neighboring embeddings.
+
+For example:
+similarity(e1, e2) = 0.91
+similarity(e2, e3) = 0.47
+similarity(e3, e4) = 0.88
+
+Notice:
+P1 ↔ P2 = very similar
+P2 ↔ P3 = large semantic jump
+P3 ↔ P4 = very similar
+
+
+Where exactly is the "correct" cut?
+There isn't always one.
+Semantic boundaries are not mathematically objective.
+
+That means you need some rule such as:
+absolute similarity threshold
+
+or:
+cut at the lowest 10% of similarities
+============================
+Document
+   ↓
+split into sentences / paragraphs
+   ↓
+embed each unit
+   ↓
+compare nearby units
+   ↓
+find large semantic changes
+   ↓
+create chunk boundaries
+
+
+
+explicit document structure
+        ↓
+use it first
+
+semantic chunking
+        ↓
+use when structure is weak
+
+###### But semantic chunking is NOT automatically better
+This is important.
+
+Imagine documentation like:
+Authentication
+
+ Login
+...
+
+ Refresh Tokens
+...
+
+ Logout
+...
+
+The document already tells you the structure.
+
+You do not need an embedding model to rediscover it.
+
+Use the headings.
+
+So I would generally prefer:
+explicit document structure
+        ↓
+use it first
+
+semantic chunking
+        ↓
+use when structure is weak
+
+The principle is:
+Don't use ML to infer a boundary the document already gives you explicitly.
+
+Another failure mode: chunks can become too large
+Imagine 20 consecutive paragraphs all discuss PostgreSQL.
+
+Their embeddings are all similar:
+0.91
+0.88
+0.93
+0.89
+...
+
+Semantic chunker says:
+"No topic change!"
+
+You might accidentally create:
+4,000-token chunk
+
+That's not necessarily good for retrieval.
+
+So production chunkers usually also have hard limits:
+minimum_chunk_size
+maximum_chunk_size
+
+For example:
+semantic boundary preferred
+BUT
+never exceed ~800 tokens
+
+
+###### Another failure mode: chunks can become too large
+Imagine 20 consecutive paragraphs all discuss PostgreSQL.
+
+Their embeddings are all similar:
+0.91
+0.88
+0.93
+0.89
+...
+
+Semantic chunker says:
+"No topic change!"
+
+You might accidentally create:
+4,000-token chunk
+
+That's not necessarily good for retrieval.
+
+So production chunkers usually also have hard limits:
+minimum_chunk_size
+maximum_chunk_size
+
+###### Another failure: chunks too small
+Imagine:
+"Redis is fast."
+
+"Kafka is durable."
+
+"PostgreSQL is relational."
+
+Everything changes topic rapidly.
+
+A semantic chunker might produce three tiny chunks.
+
+Those may have poor retrieval context.
+
+So you may also say:
+don't create chunks smaller than 100 tokens
+
+Again, semantic chunking still needs engineering constraints.
