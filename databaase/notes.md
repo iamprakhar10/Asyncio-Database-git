@@ -638,6 +638,21 @@ Lack of standard quering language
 
 
 ## Document Databases
+
+A document database primarily solves:
+How do I conveniently store and query flexible, nested, semi-structured data?
+
+Instead of rigid SQL tables:
+employees
+departments
+authors
+documents
+tags
+...
+
+you can store a self-contained document.
+
+
 Data is stored ad JSON-style documents. One document holds the whole object,
 including nested arrays and sub-objects
 
@@ -750,6 +765,68 @@ Write scale: HIGH(sharded)
 Data duplication(A seller nem embedded in 10k documnets means 10k writes to rename)
 Weak cross-document queries
 Flexibility becomes chaos without enforced rule, the schema drifts
+
+## Vector Databases
+A vector database id optimized for storing array of numbers and finding the vectors that are most similar to a query vector
+
+A vectorDB usually doesn't store only vectors. A typical record might conceptually look like
+
+= ================
+ID: 42
+
+Vector:
+[
+  0.12,
+ -0.83,
+  0.44,
+ ...
+]
+
+Original text:
+"Employees receive 20 days of annual leave."
+
+Metadata:
+{
+    "document": "Employee Handbook",
+    "department": "HR",
+    "year": 2026
+}
+= ================
+
+So don't define VectorDB as:
+"A database that stores JSON."
+
+That's wrong.
+
+Instead:
+A VectorDB is a database whose primary special capability is indexing and searching high-dimensional vectors efficiently.
+
+
+
+
+                VectorDB
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+     Stored data            Search index
+          │                     │
+     ID                    Vector 42
+     vector                → Vector 19
+     text                  → Vector 81
+     metadata              → Vector 103
+
+The neighbor IDs are usually part of the index, not necessarily fields inside your chunk's normal database record.
+
+And they are not necessarily the mathematically exact closest chunks either. HNSW deliberately stores a useful graph of nearby neighbors that helps navigation.
+
+
+
+
+
+
+
+
+
 
 
 
