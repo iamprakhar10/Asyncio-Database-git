@@ -522,6 +522,85 @@ and chunk at those boundaries.
 
 This is sometimes loosely called semantic chunking.
 
+= =======================
+The boundary rule and the text you embed are two separate decisions.
+
+Suppose the document is:
+-------# PostgreSQL Backups
+-------## Retention
+-------Production backups are retained for 14 days.
+
+You might use the headings only to decide where to split, but then embed just:
+Production backups are retained for 14 days.
+
+That works, but you’ve thrown away useful context.
+
+A better approach is often to embed:
+PostgreSQL Backups
+Retention
+
+Production backups are retained for 14 days.
+
+So:
+Document structure
+      ↓
+decides chunk boundaries
+
+Heading / section path
+      ↓
+can also be included in the chunk text
+
+Chunk text
+      ↓
+embedding
+
+You can also keep the headings separately as metadata:
+text = "Production backups are retained for 14 days."
+
+metadata = {
+    "document": "PostgreSQL Backups",
+    "section": "Retention"
+}
+
+But remember: if the heading exists only as metadata, it usually does not affect the embedding similarity unless your retrieval system explicitly uses it.
+
+So for RAG, a common pattern is:
+----   # PostgreSQL Backups
+----   ## Retention
+----   Production backups are retained for 14 days.
+
+→ embed this contextualized text,
+
+while separately storing:
+document_title
+section_title
+page_number
+source
+
+as metadata.
+
+So yes: headings can absolutely be part of what gets embedded, and often should be. The heading isn't merely a cutting marker.
+
+
+Metadata is also very important for access control, product filtering
+
+Metadata can help with citations
+Suppose the retrieved chunk is:
+Refunds are available within 30 days.
+
+Metadata:
+{    "document": "Enterprise Plan Handbook",    "page": 42,    "section": "Refund Policy",    "url": "..."}
+
+
+When the LLM gives an answer, your application can show:
+Source:
+Enterprise Plan Handbook
+Page 42
+Refund Policy
+
+The embedding itself has no idea about page numbers.
+
+Metadata gives you that provenance.
 ##### But small coherent chunks create another problem
 SMALL CHUNKS =>
 Advantages:
@@ -607,7 +686,7 @@ absolute similarity threshold
 
 or:
 cut at the lowest 10% of similarities
-============================
+=== =========================
 Document
    ↓
 split into sentences / paragraphs
@@ -731,3 +810,7 @@ So you may also say:
 don't create chunks smaller than 100 tokens
 
 Again, semantic chunking still needs engineering constraints.
+
+
+
+### Contextual chunking
