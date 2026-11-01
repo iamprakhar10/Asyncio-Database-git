@@ -460,6 +460,533 @@ Given this exact query and this exact document, how relevant is this document?
 
 
 
+
+
+## Metadata
+Metadata is structured information stored alongside a chunk that describes what the chunk is, where it came from, and when/how it should participate in retrieval
+
+
+Find semantically relevant chunks
+
+BUT ONLY WHERE:
+
+product = enterprise
+year = 2026
+
+
+##### Where does metadata come from?
+Usually during ingestion.
+
+Suppose you ingest:
+Enterprise_Handbook_2026.pdf
+
+Your system parses it.
+
+Some metadata may already exist:
+filename
+upload time
+document ID
+owner
+department
+permissions
+version
+
+Some comes from document structure:
+page number
+heading
+chapter
+section
+table number
+
+Some comes from your application:
+tenant_id
+customer_id
+product
+access_level
+source system
+
+So ingestion might produce:
+PDF
+ ↓
+parser
+ ↓
+extract:
+text
+title
+headings
+pages
+ ↓
+chunk
+ ↓
+attach metadata to every chunk
+
+For example:
+Enterprise Handbook
+Section: Refunds
+Page 18
+
+becomes:
+chunk.metadata = {    "document": "Enterprise Handbook",    "section": "Refunds",    "page": 18}
+
+
+Metadata is usually not discovered later at query time.
+
+Most of it is created when the data enters the system.
+
+
+##### What metadata should you store?
+This depends entirely on your application.
+
+Typical useful metadata includes:
+document_id
+document_title
+section
+page
+source
+URL
+date
+version
+product
+language
+document_type
+author
+tenant_id
+department
+access permissions
+parent_id
+
+But don't add random fields just because you can.
+
+A good question is:
+Could this field help us filter, rank, secure, cite, or navigate documents?
+
+If no, it may not be useful metadata.
+
+##### How metadata is used during a query
+Now user asks:
+"What is the Enterprise refund policy from 2026?"
+
+The system ideally transforms that into two things:
+semantic query:
+"refund policy"
+
+filters:
+product = enterprise
+year = 2026
+
+Then:
+                     USER QUERY
+                         │
+                         ▼
+                 Query understanding
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+             ▼                       ▼
+      Semantic meaning          Metadata constraints
+      "refund policy"           product=enterprise
+                                year=2026
+             │                       │
+             └───────────┬───────────┘
+                         ▼
+                    Retrieval
+                         │
+                         ▼
+                      Top K
+
+##### Does this require an extra LLM call?
+No.
+
+This is very important.
+
+There are several ways to get metadata filters.
+
+The application may already know them:
+logged-in user
+↓
+tenant_id = 81
+
+No LLM.
+
+The UI may provide them:
+Product: Enterprise
+Year: 2026
+
+No LLM.
+
+Deterministic rules may extract them:
+"2026 Enterprise policy"
+
+Rule finds:
+year = 2026product = "enterprise"
+
+
+No LLM.
+
+Or an LLM can interpret messy natural language:
+"Show me the refund rules for our biggest customers
+from last year's handbook"
+
+An LLM might infer:
+product = "enterprise"year = 2025
+
+
+That does require an LLM call.
+
+So:
+Metadata filtering
+≠
+requires LLM
+
+An LLM is merely one way of generating filters.
+
+##### When would an extra LLM call make sense?
+Suppose the user says:
+"Show policies for our premium customers released after the old pricing update."
+
+Rules may struggle.
+
+You could give an LLM the allowed schema:
+Available metadata fields:
+
+product:
+- basic
+- business
+- enterprise
+
+year:
+integer
+
+document_type:
+- policy
+- manual
+- invoice
+
+Then ask it to output structured data.
+
+For example:
+{    "semantic_query": "policies",    "filters": {        "product": "enterprise",        "year": {            "$gt": 2025        }    }}
+
+
+Then the retrieval system uses those filters.
+
+This technique is often called:
+self-query retrieval
+
+or:
+query-to-filter extraction
+
+##### Could we combine this LLM call with query rewriting?
+Yes.
+
+Instead of:
+LLM call 1 → metadata
+LLM call 2 → rewrite query
+
+you can ask one model call to produce:
+{    "search_query": "...",    "filters": {...}}
+
+
+So your architecture doesn't necessarily need multiple preprocessing LLM calls.
+
+Example:
+User:
+"Show the newest Enterprise refund rules."
+
+One call could produce:
+{    "query": "refund rules",    "filters": {        "product": "enterprise"    },    "sort": "newest"}
+
+
+
+##### Do we filter before or after retrieval?
+The preferred answer is:
+Before or during retrieval.
+
+Not after Top-K.
+
+Suppose there are:
+1,000,000 chunks
+
+and only:
+80,000
+
+are Enterprise 2026 chunks.
+
+You ideally want:
+1,000,000 chunks
+       ↓
+metadata constraint
+       ↓
+80,000 eligible
+       ↓
+semantic/vector search
+       ↓
+Top 10
+
+Not:
+search everything
+↓
+Top 10
+↓
+filter
+
+because perhaps:
+8/10
+
+are invalid.
+
+Then you're left with only 2 results.
+
+
+
+##### But with HNSW, it is slightly more subtle
+You asked this earlier.
+
+Suppose HNSW contains:
+eligible nodes
++
+ineligible nodes
+
+The search algorithm may still need to travel through an ineligible node to reach another region of the graph.
+
+Conceptually:
+query
+ ↓
+node A      eligible
+ ↓
+node B      wrong year
+ ↓
+node C      eligible and very relevant
+
+The vector database might inspect B internally.
+
+But B is not allowed to become a returned result.
+
+So:
+traversed internally
+≠
+eligible result
+
+Modern vector databases generally have mechanisms for combining vector search with metadata filters
+###### In short leave the details
+##### Metadata isn't only for filtering
+This is one of the biggest things to understand.
+
+Metadata serves several jobs.
+Security
+Suppose:
+tenant_id = 482
+
+
+User from company 482 should never retrieve company 911's documents.
+
+Search can enforce:
+tenant_id = 482
+
+This is much safer than retrieving everything and telling the LLM:
+"Don't mention private documents."
+
+The LLM should never receive unauthorized chunks.
+
+
+###### Citations
+Retrieved chunk:
+Refunds available within 30 days.
+
+Metadata:
+page = 18
+document = "Enterprise Handbook"
+section = "Refund Policy"
+
+
+Now your application can show:
+Enterprise Handbook
+Refund Policy
+Page 18
+
+###### Parent-child retrieval
+Child metadata:
+{    "parent_id": "section_281"}
+
+
+Retrieve child:
+child_918
+
+Then:
+parent_id
+↓
+section_281
+↓
+retrieve larger parent
+
+This is why metadata matters so much for advanced chunking.
+###### Freshness
+Suppose:
+effective_date = "2026-07-01"
+
+
+You can:
+prefer newer policy
+
+or:
+filter expired documents
+
+###### Routing
+Metadata:
+document_type = "invoice"
+
+could route the result into a specific extraction or answering pipeline.
+###### Ranking
+Suppose:
+D1 similarity = 0.90, year = 2022
+D2 similarity = 0.88, year = 2026
+
+For a "current policy" query, you may boost D2.
+
+Conceptually:
+
+final score = semantic score + recency boost
+
+That's a soft use of metadata rather than a hard filter.
+
+
+##### Metadata and BM25
+Metadata can also restrict BM25 search.
+
+Suppose:
+product = enterprise
+
+You can search the inverted index only among allowed chunks.
+
+So the same concept applies to:
+dense retrieval
+BM25
+hybrid retrieval
+
+Metadata is not specifically a vector-database concept.
+
+
+#### Realistic production architecture
+Here's the full ingestion side:
+                  RAW DATA
+                     │
+          PDF / DB / website / docs
+                     │
+                     ▼
+                 PARSER
+                     │
+          ┌──────────┴─────────┐
+          │                    │
+          ▼                    ▼
+        TEXT               METADATA
+                         document ID
+                         page
+                         section
+                         source
+                         tenant
+                         permissions
+                         version
+          │                    │
+          └──────────┬─────────┘
+                     ▼
+                  CHUNKING
+                     │
+                     ▼
+          each chunk inherits metadata
+                     │
+                     ▼
+                EMBEDDINGS
+                     │
+                     ▼
+         VECTOR / SEARCH DATABASE
+
+###### And query side:
+                  USER QUERY
+                      │
+                      ▼
+             Query understanding
+                      │
+           ┌──────────┴───────────┐
+           │                      │
+           ▼                      ▼
+    semantic query          metadata filters
+                            permissions
+                            dates
+                            products
+                            versions
+           │                      │
+           └──────────┬───────────┘
+                      ▼
+                HYBRID SEARCH
+              Dense + BM25
+                      │
+                      ▼
+                    Top K
+                      │
+                      ▼
+                  Reranker
+                      │
+                      ▼
+             parent/context expansion
+                      │
+                      ▼
+                     LLM
+                      │
+                      ▼
+             Answer + citations
+
+
+##### Do real projects actually use this?
+Yes.
+
+Especially when the RAG corpus contains:
+multiple customers
+multiple products
+multiple years
+permissions
+different languages
+different versions
+multiple document sources
+
+A production enterprise knowledge system without metadata would often be extremely difficult to control.
+
+If your RAG system is:
+20 PDFs
+one user
+one topic
+no permissions
+
+metadata matters much less.
+
+But once the corpus becomes heterogeneous, metadata becomes increasingly important.
+
+
+##### Can metadata hurt retrieval?
+Absolutely.
+
+Suppose the user says:
+"I need information about enterprise architecture."
+
+An LLM incorrectly extracts:
+product = "enterprise"
+
+
+But "enterprise" meant enterprise software architecture, not the Enterprise product tier.
+
+Now you've filtered out the correct documents.
+
+So filter extraction needs:
+confidence
+schema constraints
+evaluation
+fallback behavior
+
+A useful design principle is:
+If you're uncertain about a metadata filter, prefer not filtering rather than confidently excluding potentially correct evidence.
+
+For security filters, of course, that does not apply—they must always be enforced.
+
+
 ## ADVANCED CHUNKING
 #####  Basic fixed-size chunking
 A simple system might say:

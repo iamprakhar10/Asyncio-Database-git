@@ -1,3 +1,10 @@
+# Database
+Fundamentally, a database is software.
+
+More precisely, a database system is a program that uses data structures + algorithms + storage rules + concurrency mechanisms to store and retrieve data efficiently
+
+## Plan
+
 1. Database + tables
         ↓
 2. Basic SQL
