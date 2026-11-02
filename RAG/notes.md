@@ -1583,3 +1583,60 @@ Again, semantic chunking still needs engineering constraints.
 
 
 ### Contextual chunking
+Problem : A piece of text can lose the context that made it understandable inside the original document.
+
+Suppose the original document is:
+--------# PostgreSQL Backup Policy
+
+--------Production databases are backed up every night.
+
+--------## Retention
+
+--------They are retained for 14 days.
+
+--------## Storage
+
+--------The backups are uploaded to S3.
+
+If we split by paragraphs, one chunk becomes:
+They are retained for 14 days.
+
+That chunk is bad for retrieval because it does not say what "they" refers to.
+
+A user asks:
+How long are PostgreSQL backups retained?
+
+But the chunk contains neither:
+PostgreSQL
+backups
+retention
+
+So both dense retrieval and BM25 can struggle.
+
+##### The idea
+Before indexing the chunk, we add enough context to make it understandable independently.
+
+Instead of indexing:
+They are retained for 14 days.
+
+we index something like:
+PostgreSQL Backup Policy — Retention
+
+Production PostgreSQL backups are retained for 14 days.
+
+Original chunk:
+They are retained for 14 days.
+
+That added part is the context.
+
+Then:
+contextualized chunk
+        ↓
+embedding
+
+and, if using BM25:
+contextualized chunk
+        ↓
+inverted index
+
+Now the query and chunk share useful concepts.
