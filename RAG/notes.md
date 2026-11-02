@@ -1889,3 +1889,195 @@ C1 → parent_id=P17
 C2 → parent_id=P17
 C3 → parent_id=P17
 C4 → parent_id=P17
+
+##### Query time flow
+Query
+  ↓
+search children
+  ↓
+C2 retrieved
+  ↓
+C2.parent_id = P17
+  ↓
+fetch P17
+  ↓
+send P17 to LLM
+
+##### Why not just embed the parent?
+Because the parent may discuss several things:
+expiration
+refresh behavior
+reauthentication
+storage security
+
+Its vector represents all of them.
+
+A very specific query can therefore match less strongly than it would against a focused child.
+
+That gives us the central idea:
+Retrieve small, answer with large.
+
+##### What gets stored where?
+Conceptually:
+VECTOR INDEX
+
+C1 embedding → metadata(parent_id=P17)
+C2 embedding → metadata(parent_id=P17)
+C3 embedding → metadata(parent_id=P17)
+C4 embedding → metadata(parent_id=P17)
+
+Separately, somewhere retrievable:
+PARENT STORE
+
+P17 → full Refresh Tokens section
+
+The parent store could be:
+- the same vector/database system,
+- a normal database,
+- document store,
+- key-value store,
+- another collection/index.
+The architecture doesn't require one specific database.
+
+
+##### What if multiple children from the same parent match?
+Suppose retrieval gives:
+C2 → parent P17
+C3 → parent P17
+C9 → parent P22
+C4 → parent P17
+
+You don't want to send P17 three times.
+
+So your code deduplicates:
+C2 ─┐
+C3 ─┼→ P17
+C4 ─┘
+
+C9 ───→ P22
+
+Final context:
+P17
+P22
+
+only once each.
+
+This is an important practical detail.
+
+##### Does every parent need to be huge?
+No.
+
+A parent should be large enough to restore useful surrounding context, but not so large that it floods the LLM with irrelevant text.
+
+For example:
+child: 100–300 tokens
+parent: 500–1500 tokens
+
+could be reasonable, but those are not universal numbers.
+
+You evaluate thems
+
+##### How is this different from contextual chunking?
+Very important.
+Contextual chunking
+You modify the searchable child:
+Raw:
+"They are retained for 14 days."
+
+Contextualized:
+"PostgreSQL backup retention:
+They are retained for 14 days."
+
+Goal:
+Make the child itself easier to retrieve.
+
+Parent-child retrieval
+You search a small child:
+"They are retained for 14 days."
+
+but after retrieving it, fetch a larger parent:
+PostgreSQL Backup Policy
+Backups run nightly.
+They are retained for 14 days.
+They are uploaded to S3.
+
+Goal:
+Give the LLM more context after retrieval.
+
+So:
+Contextual chunking
+→ improves retrieval representation
+
+Parent-child retrieval
+→ improves returned context
+
+You can use both together.
+
+
+##### Combined architecture
+This is a strong pattern:
+Parent section
+   ↓
+split into small children
+   ↓
+add contextual text to each child
+   ↓
+embed/search contextualized children
+   ↓
+retrieve child
+   ↓
+use parent_id
+   ↓
+fetch larger parent
+   ↓
+rerank / deduplicate
+   ↓
+LLM
+
+For example:
+Child searchable text:
+"Section: Refresh Tokens.
+This chunk explains how an expired access token
+can be replaced using a refresh token.
+
+When an access token expires..."
+
+Metadata:
+{    "parent_id": "P17",    "section": "Refresh Tokens"}
+
+
+Again, where did those metadata values come from?
+- parent_id: created by our chunking code.
+- section: extracted from document structure by the parser or source format.
+- other fields like page: extracted from the source parser.
+- product/version/etc.: copied from source/application data if available.
+
+
+
+##### Main downside
+Parent-child retrieval can increase token usage.
+
+Imagine:
+5 child hits
+
+turn into:
+5 parents × 1200 tokens
+
+Now you've created 6000 tokens of context.
+
+So production systems often do:
+retrieve many small children
+↓
+group/deduplicate by parent
+↓
+keep only best parents
+↓
+possibly rerank parents
+↓
+send limited context to LLM
+
+So parent expansion itself needs control.
+One-line definition
+Parent-child retrieval means indexing/searching small child chunks for precision, then using a stored parent relationship to fetch a larger surrounding chunk for the LLM.
+
+The next chunking technique after this should be sentence-window retrieval, which is closely related but expands around a matched sentence rather than fetching a predefined parent.
