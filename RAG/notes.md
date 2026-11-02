@@ -146,6 +146,19 @@ giving the LLM the smallest amount of evidence that is sufficient to answer corr
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Hybrid Search
 ##### Dense retrieval vs sparse retrieval
 
@@ -406,6 +419,24 @@ k1 → TF saturation
 b  → document-length normalization
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## RRF - Ranked based fusion
 RRF ignores the raw similarity/BM25 scores and uses only the ranks.
 So a document that ranks well in both retrievers tends to beat a document that ranks highly in only one.
@@ -431,6 +462,26 @@ Cross-encoder:
 
 And yes, in a production pipeline, reducing the number of documents sent to the expensive cross-encoder is a major practical reason for doing this fusion and cutoff step.
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Cross Encoder Reranker
 Now suppose:
 Query:
@@ -455,6 +506,20 @@ score(q,d)=0.96
 
 So the Cross encoder reranker is answering a much easier and more precise question:
 Given this exact query and this exact document, how relevant is this document?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -959,6 +1024,183 @@ no permissions
 metadata matters much less.
 
 But once the corpus becomes heterogeneous, metadata becomes increasingly important.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## Parser
+A parser is anything that takes raw input and turns it into a structured form your code can use. That's all it means. For example, an HTML parser reads those tags like H2 or P and gives you heading and paragraph. A Markdown parser sees a double-hash and knows it's a heading. With a PDF, things are trickier. The parser might give you text, plus page number, font size, coordinates
+
+And sometimes extra heuristics or an ML model help decide, "this looks like a heading." Then your own ingestion code decides what to keep as metadata, for example, keeping page and section and ignoring font size. You don't always need a fancy parser. If your data starts in a database table, you're already structured. But if you're ingesting PDFs or scans, some parsing plus maybe OCR is basically unavoidable. Strong systems usually have some kind of document understanding step, even if it's just a simple HTML or Markdown parser
+
+
+##### Do they use machine learning models?
+Sometimes. Think of two layers. First, a PDF library deterministically extracts low-level stuff. Strings of text, font sizes, coordinates, page numbers, drawing order. That part's not an LLM. Then you either apply rules like, "biggest bold text near the top of a page, it's probably a heading," or you use a layout model trained to label regions as title, paragraph, table, and so on. For scanned PDFs, you first need OCR to get words plus positions, then again you can use rules or a model to group them into paragraphs and headings. So, "always an ML model?" No. But as documents get messier or more visually complex, ML layout models become more useful. And after that, your ingestion code still makes the call: "Do I store this as section and page in metadata or not?"
+
+
+#### What is OCR
+OCR stands for optical character recognition. It's the step that looks at an image, say a scanned PDF page, and outputs the words it sees, often along with their positions on the page. So instead of pixels, you get "Refund Policy" at these coordinates.
+
+That text plus positions can then go through the same "what looks like a heading or paragraph?" logic we talked about.
+
+Modern OCR is ML-based. More precisely, OCR is a task: turn an image of text into machine-readable text. Today's OCR systems typically use deep learning models to find and recognize text. Older ones used more hand-written rules. In a RAG mental model, it's safe to think "scanned page goes through an OCR model which outputs text plus coordinates," then later steps decide "heading versus paragraph."
+
+OCR is not the parser
+
+
+
+##### How does a typical output of OCR looks?
+A typical OCR system may return just plain text, but production OCR often returns structured data like this:
+
+[
+    {
+        "text": "Refund Policy",
+        "bbox": [72, 110, 240, 145],
+        "confidence": 0.99,
+        "page": 18,
+        "font_size": 18,
+        "bold": True
+    },
+    {
+        "text": "Customers may request a refund within 30 days.",
+        "bbox": [72, 170, 520, 205],
+        "confidence": 0.97,
+        "page": 18
+    }
+]
+
+Meaning:
+
+text
+→ what OCR recognized
+
+bbox
+→ where that text was on the page
+   [x1, y1, x2, y2]
+
+confidence
+→ how sure the OCR model is
+
+page
+→ which page it came from
+Visually, OCR is converting this:
+
+IMAGE / SCANNED PDF
+
+┌──────────────────────────────┐
+│       Refund Policy          │
+│                              │
+│ Customers may request a      │
+│ refund within 30 days.       │
+└──────────────────────────────┘
+into something like:
+
+"Refund Policy"
+position = top of page
+
+"Customers may request a refund within 30 days."
+position = below heading
+But notice: OCR usually does not automatically mean
+
+"Refund Policy" = section heading
+It may only say:
+
+here are the words
++
+here are their coordinates
+Then a later layout/parser step can decide:
+
+large text near top
+→ heading
+
+smaller text underneath
+→ paragraph
+
+###### Clea pipeline
+scanned PDF/image
+      ↓
+OCR
+      ↓
+text + positions + confidence
+      ↓
+layout/parser
+      ↓
+heading / paragraph / table / etc.
+      ↓
+our RAG ingestion code
+      ↓
+metadata + chunks
+
+
+
+You do not say:
+OCR output
+→ must use LayoutLM
+
+Instead:
+OCR output
+   ↓
+choose one:
+
+1. deterministic heuristics
+2. dedicated layout detection model
+3. document parser library
+4. LayoutLM-family model
+5. multimodal/VLM-based parser
+
+LayoutLM is one possible document-understanding model.
+
+For simple heading detection, it can actually be overkill.
+
+###### Clean mental model
+For a scanned pdf:
+
+Image
+  ↓
+OCR
+  ↓
+words + positions
+  ↓
+How do we identify structure?
+  ↓
+┌───────────────────────────────┐
+│ Simple document              │
+│ → deterministic rules        │
+│                              │
+│ Complex document             │
+│ → layout/document model      │
+└───────────────────────────────┘
+  ↓
+heading / paragraph / table
+  ↓
+RAG metadata + chunks
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ##### Can metadata hurt retrieval?
