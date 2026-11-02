@@ -2081,3 +2081,125 @@ One-line definition
 Parent-child retrieval means indexing/searching small child chunks for precision, then using a stored parent relationship to fetch a larger surrounding chunk for the LLM.
 
 The next chunking technique after this should be sentence-window retrieval, which is closely related but expands around a matched sentence rather than fetching a predefined parent.
+
+
+
+
+## GSRGLSR
+
+
+### Sentence-window retrieval
+This solves almost the same problem as parent-child retrieval, but in a more local way.
+
+Suppose the document contains:
+S1: Access tokens expire after 30 minutes.
+
+S2: Refresh tokens remain valid for seven days.
+
+S3: When an access token expires, the client can use
+    the refresh token to obtain a new one.
+
+S4: If the refresh token has also expired, the user
+    must authenticate again.
+
+S5: Refresh tokens should be stored securely.
+
+Instead of embedding a 500-token chunk, we might embed individual sentences or very small groups.
+
+Query:
+What should happen when an access token expires?
+
+The retriever finds:
+S3
+
+But rather than send only S3 to the LLM, our code expands around it:
+S2
+S3   ← retrieved sentence
+S4
+
+So:
+small unit
+   ↓
+precise retrieval
+   ↓
+retrieve neighboring text
+   ↓
+richer context for LLM
+
+That's sentence-window retrieval.
+
+How does the system know which sentences are neighbors? We create that relationship during ingestion. For example, after splitting the document into sentences, our ingestion code may assign:
+{    "sentence_id": 103,    "text": "...",    "document_id": "doc_17",    "sentence_index": 14}
+
+
+document_id came from our application/source record, while sentence_index was created by our ingestion code when it split the document. If sentence 14 matches, we can fetch indices 12–16.
+
+Difference from parent-child:
+Parent-child:
+small child → predetermined larger parent
+
+Sentence-window:
+small sentence → dynamically fetch N neighboring sentences
+
+Sentence-window is nice when you don't have obvious parent sections.
+
+
+### Chunk overlap
+You've already seen:
+chunk_size = 500
+overlap = 50
+
+Why overlap?
+
+Because boundaries can cut information apart.
+
+Without overlap:
+Chunk 1:
+Enterprise customers are entitled to a complete
+
+Chunk 2:
+refund within thirty days of purchase.
+
+Bad.
+
+With overlap:
+Chunk 1:
+...Enterprise customers are entitled to a complete
+refund within thirty days...
+
+Chunk 2:
+...complete refund within thirty days of purchase...
+
+Now both chunks preserve the idea.
+
+But overlap has a cost.
+
+Suppose:
+chunk size = 500
+overlap = 250
+
+Then half of every chunk is duplicated.
+
+That means:
+more embeddings
+more vector storage
+more BM25 entries
+more retrieval duplicates
+more reranking cost
+more LLM context duplication
+
+You could retrieve:
+Chunk 17
+Chunk 18
+Chunk 19
+
+and discover that 60% of their text is identical.
+
+So overlap is a boundary-protection mechanism, not something to maximize.
+
+For clean structure-aware chunking, you may need little or even no overlap. If you're already splitting at complete paragraphs or sections, overlap can be much less important.
+
+A practical rule:
+Use overlap when arbitrary boundaries may split information; reduce it when your chunking already respects semantic/structural boundaries.
+
+There is no universal 50 tokens rule.
