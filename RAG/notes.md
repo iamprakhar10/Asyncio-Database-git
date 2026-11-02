@@ -1640,3 +1640,252 @@ contextualized chunk
 inverted index
 
 Now the query and chunk share useful concepts.
+
+##### Where did that context come from?
+This is the important part.
+
+There are several possible sources, and we choose which one to use in our ingestion pipeline.
+###### 1. Document structure already extracted
+Suppose our parser gave us:
+document_title = "PostgreSQL Backup Policy"section = "Retention"
+
+
+Where did these values come from?
+- document_title may have come from the file/database/document itself.
+- section may have been extracted from a Markdown/HTML heading or inferred by a PDF parser/layout system.
+Our code can prepend them:
+contextual_text = f"""Document: {document_title}Section: {section}{chunk_text}"""
+
+
+No LLM needed.
+
+This is often the simplest version.
+###### 2. Surrounding text from the parent document
+Original:
+----## Retention
+
+Production databases are backed up every night.
+
+They are retained for 14 days.
+
+Our ingestion code can include some preceding context:
+Section: Retention
+Production databases are backed up every night.
+They are retained for 14 days.
+
+Again, no LLM is required.
+
+The context came directly from the source document.
+###### 3. LLM-generated context
+This is the more advanced approach.
+
+We give an LLM:
+Document/section:
+PostgreSQL Backup Policy...
+Production databases are backed up every night...
+Retention...
+
+Current chunk:
+"They are retained for 14 days."
+
+and ask:
+Write one short sentence explaining what this chunk refers to.
+Use only information supported by the document.
+
+The model might produce:
+This chunk states that production PostgreSQL database backups
+are retained for 14 days.
+
+Then we store/index:
+This chunk states that production PostgreSQL database backups
+are retained for 14 days.
+
+They are retained for 14 days.
+
+Here the extra context was created by an LLM during ingestion.
+
+Important: this is generally an ingestion-time cost, not a new LLM call every time the user asks a question.
+So contextual chunking happens before user queries
+The flow is:
+                INGESTION TIME
+
+Raw document
+     ↓
+parse document
+     ↓
+document structure + text
+     ↓
+create chunks
+     ↓
+for each chunk:
+add useful context
+     ↓
+contextualized chunk
+     ↓
+embedding / BM25 indexing
+     ↓
+store
+
+Later:
+                 QUERY TIME
+
+User query
+    ↓
+retrieve contextualized chunks
+    ↓
+rerank
+    ↓
+LLM
+
+You are not contextualizing the chunks again for every query.
+##### Why not just make larger chunks?
+Because that creates a different problem.
+
+Instead of:
+They are retained for 14 days.
+
+you could simply embed:
+1500 tokens of the entire PostgreSQL backup section
+
+Now the necessary context is present, but the chunk contains lots of unrelated information.
+
+Contextual chunking tries to give you:
+small precise chunk
++
+just enough surrounding meaning
+
+rather than:
+huge chunk containing everything
+
+##### Does the contextual text replace the original text?
+Usually, no.
+
+You normally preserve both.
+
+For example:
+{    "original_text":        "They are retained for 14 days.",    "retrieval_text":        "PostgreSQL Backup Policy — Retention. "        "Production PostgreSQL backups are retained for 14 days. "        "They are retained for 14 days.",    "metadata": {        "document_id": "doc_17",        "section": "Retention",        "page": 8    }}
+
+
+Notice where the metadata came from:
+- document_id: assigned by our application/database.
+- section: extracted from the document structure by our parser/ingestion code.
+- page: extracted directly from the PDF/page parser.
+Then:
+retrieval_text
+→ embedding/BM25
+
+original_text
+→ source/citation/original evidence
+
+metadata
+→ filtering, citations, relationships
+
+##### Contextual text vs metadata
+These are different.
+
+Suppose:
+metadata = {    "section": "Retention"}
+
+
+If "Retention" stays only in metadata, it normally does not automatically affect the embedding.
+
+But if we create:
+Section: Retention
+They are retained for 14 days.
+
+and embed that, "Retention" becomes part of the semantic representation.
+
+So:
+Metadata
+→ structured information for filtering/citations/etc.
+
+Contextualization
+→ deliberately puts useful context into searchable text
+
+They can use the same underlying information, but for different purposes.
+
+##### Does contextual chunking help BM25?
+Absolutely.
+
+Original:
+They are retained for 14 days.
+
+Query:
+PostgreSQL backup retention
+
+BM25 has almost nothing useful to match.
+
+Contextualized:
+PostgreSQL Backup Policy — Retention.
+Production PostgreSQL backups are retained for 14 days.
+
+Now BM25 sees:
+PostgreSQL
+Backup
+Retention
+
+So contextualization can improve both:
+dense retrieval
++
+lexical retrieval
+
+##### Main risk
+Bad context can hurt retrieval.
+
+If every chunk gets:
+This chunk comes from a technical document about databases,
+cloud infrastructure, security, and software systems.
+
+then many chunks become artificially similar.
+
+Good context is:
+short
+specific
+locally useful
+supported by the source
+
+For example:
+This chunk describes the retention period for PostgreSQL backups.
+
+Good.
+This chunk discusses important enterprise infrastructure.
+
+Mostly useless.
+One-line definition
+Contextual chunking means enriching a chunk with a small amount of information from its original document so that the chunk still makes sense—and can be retrieved accurately—after being separated from that document.
+
+
+
+
+
+
+### Parent-Child Retrieval
+The problem it solves is this:
+Small chunks are easier to retrieve accurately, but they may not contain enough context to answer the question. Large chunks contain enough context, but their embeddings can be noisier and less precise.
+
+##### Where does the parent-child relationship come from?
+We create it during ingestion.
+
+Suppose our ingestion code creates:
+parent = {    "id": "P17",    "text": "...entire Refresh Tokens section..."}
+
+
+Then each child gets metadata like:
+child = {    "id": "C2",    "text": "When an access token expires...",    "metadata": {        "parent_id": "P17"    }}
+
+
+Where did parent_id come from?
+
+Not from an LLM.
+
+Not magically from the vector database.
+
+Our ingestion code assigned it when it created the child from parent P17.
+
+So:
+Parent P17
+   ↓ our chunking code
+C1 → parent_id=P17
+C2 → parent_id=P17
+C3 → parent_id=P17
+C4 → parent_id=P17
