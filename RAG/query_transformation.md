@@ -432,3 +432,215 @@ Search query could simply become:
 What happens when an access token expires?
 
 The transformation removes irrelevant conversational material.
+
+
+## Multi-query retrieval
+Query rewriting assumes:
+There is one good search formulation.
+
+Sometimes that's not true.
+
+Consider:
+How does the application maintain authentication
+after the access token expires?
+
+Useful documentation might use very different terminology.
+
+One document:
+Refresh token flow
+
+Another:
+JWT renewal
+
+Another:
+Session continuation after token expiry
+
+So instead of generating one rewritten query, generate several:
+Q1:
+access token expiration refresh token flow
+
+Q2:
+JWT renewal after token expiry
+
+Q3:
+maintaining authenticated session after access token expiration
+
+Then run retrieval separately:
+                         Query
+                           ↓
+                  generate alternatives
+                     /      |      \
+                   Q1       Q2      Q3
+                   ↓        ↓       ↓
+               retrieve  retrieve retrieve
+                     \      |      /
+                       merge
+                         ↓
+                     deduplicate
+                         ↓
+                       rerank
+
+What is deduplication?
+If Q1 and Q2 both retrieve the same chunk, you don't want two copies.
+
+So:
+Q1 → D7, D9, D3
+Q2 → D7, D4, D8
+
+after deduplication:
+D7, D9, D3, D4, D8
+
+D7 appears once.
+
+Then the reranker can judge them all against the user's original information need.
+#### What problem does multi-query solve?
+Primarily recall.
+
+Remember:
+Recall asks whether we managed to retrieve the relevant evidence at all.
+
+Different query wording explores different parts of the retrieval space.
+
+If:
+Q1 misses the answer
+
+perhaps:
+Q2 retrieves it.
+
+#### What is the downside?
+Cost and latency.
+
+Three queries can mean:
+3 query generations
+3 embeddings
+3 vector searches
+possibly 3 BM25 searches
+larger candidate set
+more reranking work
+
+So you don't blindly generate 20 queries.
+
+Often a small number such as 2–5 alternatives is enough to experiment with.
+
+The correct number should come from evaluation.
+#### Multi-query vs ordinary query expansion
+You may hear query expansion.
+
+This broadly means adding related terms or concepts to make search broader.
+
+For example:
+Original:
+"JWT expiry"
+
+Expanded:
+"JWT expiry access token expiration token renewal refresh token"
+
+Multi-query retrieval instead creates separate queries:
+JWT token expiration
+refresh-token renewal
+authentication after token expiry
+
+The concepts overlap, but the implementation differs:
+query expansion
+→ one richer query
+
+multi-query
+→ several separate searches
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+Just like with hybrid search, you cannot simply add or average the raw scores from these different query variants because vector spaces and distance metrics shift depending on how a sentence is phrased.
+
+To merge these multi-query lists cleanly, systems rely on Reciprocal Rank Fusion (RRF) adapted for multi-query aggregation.
+
+Once RRF merges the multi-query lists into a single, deduplicated candidate pool (e.g., the top 30 documents), that pool is handed off to the Cross-Encoder Re-ranker we discussed earlier to perform deep textual cross-attention against the original user prompt and pick the final 3 to 5 chunks for the LLM.
+- - - - - - - - - - - - - - - - - - - - - - - - - - - -  
+
+
+
+## HyDE
+Hypothetical document embeddings
+
+Suppose user asks:
+Why does error E104 occur?
+
+A question is short:
+Why does error E104 occur?
+
+But your knowledge base consists of answer-like passages:
+Error E104 occurs when the authentication token has expired.
+Generate a fresh token and retry the request.
+
+The idea behind HyDE is:
+Ask an LLM to imagine what a useful answer passage might look like, then embed that passage and use it to search for real documents.
+
+So:
+User query:
+"Why does error E104 occur?"
+        ↓
+LLM creates hypothetical passage
+        ↓
+"Error E104 occurs when an authentication token
+expires and must be renewed..."
+        ↓
+embed hypothetical passage
+        ↓
+vector search
+        ↓
+real documents
+
+#### Wait—isn't the LLM hallucinating?
+Potentially, yes.
+
+And that is okay only because the hypothetical text is not treated as evidence.
+
+Suppose it incorrectly generates:
+E104 occurs because the database connection expires.
+
+We do not answer the user with that.
+
+We use its embedding as a search probe.
+
+Then the actual retrieval might find:
+E104 occurs when the authentication token expires.
+
+The final answer must come from real retrieved documents.
+
+So:
+HyDE output
+→ retrieval tool
+
+NOT
+→ factual source
+
+This distinction is essential.
+#### Why can HyDE work?
+Embedding models often compare texts more effectively when the texts have similar styles and semantic density.
+
+Compare:
+Question:
+Why does E104 occur?
+
+against:
+Document:
+E104 occurs when...
+
+versus comparing:
+Hypothetical explanatory paragraph
+
+against:
+Real explanatory paragraph
+
+The second pair may occupy more similar regions in embedding space.
+#### Does HyDE help BM25?
+Not primarily.
+
+HyDE was designed around dense embeddings.
+
+You could technically use generated text for lexical retrieval too, but its main motivation is improving dense semantic retrieval.
+#### Cost
+Again, you need an LLM before retrieval:
+LLM → hypothetical document
+retrieval
+LLM → final answer
+
+So don't add it unless evaluation shows it improves retrieval.

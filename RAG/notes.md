@@ -2203,3 +2203,201 @@ A practical rule:
 Use overlap when arbitrary boundaries may split information; reduce it when your chunking already respects semantic/structural boundaries.
 
 There is no universal 50 tokens rule.
+
+
+##### Special content should not always be chunked like prose
+This is important in real RAG systems.
+###### Tables
+Consider:
+Plan         Price        Refund
+Basic        $20          7 days
+Business     $50          14 days
+Enterprise   $100         30 days
+
+Blindly splitting every 100 tokens could destroy the row-column relationship.
+
+You might end up with:
+Basic $20
+Business $50
+
+and elsewhere:
+7 days
+14 days
+Enterprise $100 30 days
+
+Terrible.
+
+For a table, you may instead preserve:
+Plan: Business
+Price: $50
+Refund period: 14 days
+
+or keep the whole table together if small enough.
+
+Metadata may include:
+{    "page": 12,    "table_id": "table_4"}
+
+
+Where did those come from?
+- page was extracted from the PDF/document parser.
+- table_id was assigned by our ingestion code when the parser identified that table.
+###### Source code
+Code has natural structure:
+module
+class
+function
+method
+
+You generally don't want:
+every 500 tokens → cut
+
+in the middle of:
+def authenticate_user(...):
+
+
+A better strategy might be:
+one function
+or
+one class/method group
+
+with useful context such as:
+File: auth/service.py
+Class: AuthService
+Function: refresh_token
+
+Those identifiers may come directly from the source-code AST/parser, while fields such as repository or branch could come from the application/git integration.
+###### JSON
+Suppose:
+{
+  "customer": {
+    "id": 92,
+    "company": "ACME",
+    "subscription": {
+      "plan": "enterprise",
+      "renewal": "2026-12-01"
+    }
+  }
+}
+
+Cutting by token count can detach:
+renewal
+
+from:
+customer / subscription
+
+So you may chunk by logical JSON objects or paths.
+
+For example:
+Path: customer.subscription
+
+plan = enterprise
+renewal = 2026-12-01
+
+###### Conversations/transcripts
+Don't blindly cut:
+Speaker A asks question
+---- boundary ----
+Speaker B answers
+
+You may chunk by:
+conversation turns
+topic windows
+question-answer pairs
+
+Speaker names/timestamps can be metadata if available from the transcript source; if we create turn numbers ourselves, those are ingestion-generated metadata.
+
+So the larger principle is:
+Chunk according to the structure of the information, not merely the number of tokens.
+
+### Proposition / atomic chunking
+This is more advanced.
+
+Suppose a paragraph says:
+Enterprise subscriptions cost $100 per month.
+They include priority support.
+Refunds are available for 30 days.
+
+Instead of storing the whole paragraph as one retrieval unit, you can decompose it into atomic statements:
+Enterprise subscriptions cost $100 per month.
+
+Enterprise subscriptions include priority support.
+
+Enterprise subscriptions have a 30-day refund period.
+
+Each statement represents approximately one fact.
+
+Why can this help?
+
+Query:
+How long is the Enterprise refund period?
+
+matches very cleanly against:
+Enterprise subscriptions have a 30-day refund period.
+
+instead of an embedding representing pricing + support + refund policy together.
+
+This improves retrieval granularity.
+
+But there are costs.
+
+The propositions often need to be generated or rewritten, which may require an LLM or another information-extraction model during ingestion. That introduces:
+ingestion cost
+possible hallucination
+many more indexed records
+loss of surrounding context
+
+So you often retain a link back to the original paragraph:
+{    "proposition": "Enterprise subscriptions have a 30-day refund period.",    "parent_id": "paragraph_183"}
+
+
+Here parent_id is created by our ingestion pipeline when the proposition is generated from that paragraph.
+
+Then:
+retrieve proposition
+→ fetch original paragraph
+→ give grounded source to LLM
+
+Atomic retrieval can be powerful for fact-heavy knowledge bases, but I would not make it your default first implementation.
+### 5. Late chunking
+This is conceptually interesting because it addresses a weakness we've repeatedly seen:
+If we embed each tiny chunk independently, it may lose document-level context.
+
+Normal approach:
+Document
+  ↓
+split first
+  ↓
+Chunk A → embedding
+Chunk B → embedding
+Chunk C → embedding
+
+Each chunk is encoded independently.
+
+So:
+"They are retained for 14 days."
+
+still lacks information about what "they" means.
+
+Late chunking reverses part of this process.
+
+Conceptually:
+larger document / long context
+          ↓
+embedding model processes context together
+          ↓
+context-aware token representations
+          ↓
+NOW create chunk representations
+
+So the representation of:
+"They"
+
+can already be influenced by earlier text about:
+PostgreSQL backups
+
+before the final chunk vector is produced.
+
+The key idea is:
+Use the larger document context while computing the representation, then derive chunk-level vectors afterward.
+
+You should know this concept, but you do not need to implement it for your first advanced RAG project.
