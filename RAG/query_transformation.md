@@ -644,3 +644,443 @@ retrieval
 LLM → final answer
 
 So don't add it unless evaluation shows it improves retrieval.
+
+
+## Step-back querying
+Now suppose the user's question is very specific:
+Why does my FastAPI endpoint return 401 immediately
+after an access token expires?
+
+Perhaps the knowledge base doesn't contain that exact question.
+
+But it contains broader material:
+JWT access-token expiration and refresh-token authentication
+
+A step-back query deliberately asks a broader question:
+How does access-token expiration and refresh-token
+authentication work?
+
+So:
+Specific query
+      ↓
+step back to broader underlying concept
+      ↓
+retrieve conceptual background
+
+Then use that background to help answer the specific question.
+#### Why would broadening help?
+Because sometimes the answer requires a concept rather than a direct sentence match.
+
+Imagine asking:
+Why does PostgreSQL index lookup sometimes still require
+reading the heap page?
+
+A broader query might be:
+How do PostgreSQL B-tree indexes reference heap tuples?
+
+That may retrieve the underlying explanation needed to answer the specific question.
+#### Step-back is different from rewriting
+Rewrite:
+"Why am I getting 401?"
+        ↓
+"Why does an expired access token cause HTTP 401?"
+
+Same level of specificity.
+
+Step-back:
+"Why does an expired access token cause HTTP 401?"
+        ↓
+"How does token-based authentication and expiration work?"
+
+It intentionally moves to a more general concept.
+
+Sometimes systems retrieve using both:
+specific query
++
+step-back query
+
+Then combine the evidence.
+
+That is often safer than replacing the original query entirely.
+
+## Query decomposition
+This is probably the most important advanced technique when questions become complex.
+
+Suppose:
+Compare the Enterprise and Business refund policies
+and tell me which gives customers more time.
+
+This is not really one information need.
+
+It contains:
+Need A:
+Enterprise refund period
+
+Need B:
+Business refund period
+
+Then:
+compare A and B
+
+If you embed the original long question once, retrieval might strongly retrieve Enterprise docs but miss Business docs.
+
+So we decompose:
+Original
+   ↓
+Subquery 1:
+What is the Enterprise Plan refund period?
+
+Subquery 2:
+What is the Business Plan refund period?
+
+Retrieve each separately:
+Q1 → Enterprise evidence → 30 days
+Q2 → Business evidence   → 14 days
+
+Then the final model compares:
+30 > 14
+
+and answers.
+#### Another decomposition example
+Question:
+Was the refund policy changed after the Enterprise
+Plan price increased?
+
+To answer properly you might need:
+What was the old Enterprise refund policy?
+
+What is the current Enterprise refund policy?
+
+When did the Enterprise price change?
+
+Then combine those facts.
+
+This is where RAG starts moving toward multi-hop retrieval.
+#### What is multi-hop retrieval?
+It simply means:
+Answering the question requires retrieving multiple pieces of evidence, sometimes where one retrieved fact determines what you search for next.
+
+Example:
+Question:
+Who became CEO after the company that acquired Acme
+changed leadership?
+
+You might first need:
+Who acquired Acme?
+
+Result:
+Company X
+
+Then search:
+Who became CEO of Company X?
+
+The second retrieval depends on the first retrieval result.
+
+That's a true multi-hop process.
+
+We'll study that separately later.
+
+Simple query decomposition does not necessarily require sequential dependencies. You can often run all subqueries in parallel.
+#### Who performs decomposition?
+Often an LLM.
+
+You give it:
+Question:
+Compare Enterprise and Business refund policies...
+
+and ask for structured output:
+{    "subqueries": [        "What is the Enterprise refund period?",        "What is the Business refund period?"    ]}
+
+
+Then your application executes those searches.
+
+Again:
+LLM decomposition call
+→ retrieval calls
+→ final answer LLM
+
+Potential extra LLM cost.
+
+
+
+
+# new heading
+### Metadata and query transformation can work together
+Suppose user says:
+Compare the 2026 Enterprise and Business refund periods.
+
+A query-understanding step might produce:
+Subquery 1:
+refund period
+filter:
+product = enterprise
+year = 2026
+
+Subquery 2:
+refund period
+filter:
+product = business
+year = 2026
+
+Where did those metadata fields come from?
+
+The metadata schema was designed during ingestion and stored on chunks. product and year values might have come from the source database/application, file path, parser, user input, or another extraction step depending on the project.
+
+At query time, the parser/LLM is merely generating filter conditions against fields we already know exist.
+
+So transformation and metadata filtering complement each other:
+query transformation
+→ what should I search for?
+
+metadata filters
+→ where am I allowed / supposed to search?
+
+### How does the system decide whether transformation is needed?
+There are several approaches.
+
+A simple system may always rewrite queries.
+
+A slightly smarter system might use deterministic checks:
+Does query contain pronouns like "that", "it", "those"?
+Does it reference prior conversation?
+Does it contain "compare", "and", "versus"?
+
+A more flexible system can ask an LLM/classifier:
+Does this query require:
+- direct retrieval
+- rewrite
+- decomposition
+- multiple searches?
+
+Once you start dynamically deciding this, you move toward routing or agentic retrieval, which we'll cover later.
+
+### Do real systems use every transformation?
+No.
+
+This is critical.
+
+A bad engineering mindset would be:
+rewrite
+→ multi-query
+→ HyDE
+→ step-back
+→ decomposition
+
+for every query.
+
+That's absurdly expensive and can actually reduce quality.
+
+Instead:
+simple question
+→ direct retrieval
+
+ambiguous conversational question
+→ rewrite
+
+complex comparison
+→ decomposition
+
+retrieval recall problem
+→ perhaps multi-query
+
+special semantic mismatch
+→ experiment with HyDE
+
+Advanced RAG means selectively solving measured failure modes, not stacking every technique.
+
+
+
+# Multi-hop retrieval
+The core idea is simple:
+A question is multi-hop when answering it requires multiple pieces of evidence, and at least one retrieval step may depend on information discovered in an earlier step.
+
+That last part is what makes it different from ordinary query decomposition.
+
+Suppose the user asks:
+What is the refund period for the product
+that replaced the old Enterprise plan?
+
+You cannot directly search:
+refund period for ???
+
+because you don't yet know the product.
+
+So:
+Original question
+       ↓
+Hop 1:
+What product replaced the old Enterprise plan?
+       ↓
+Retrieved evidence:
+"Enterprise Plus replaced Enterprise."
+       ↓
+Extract:
+Enterprise Plus
+       ↓
+Hop 2:
+What is the refund period for Enterprise Plus?
+       ↓
+Retrieved evidence:
+"Enterprise Plus has a 45-day refund period."
+       ↓
+Final answer
+
+The word hop just means one retrieval/reasoning step.
+
+### Why ordinary RAG fails here
+Normal RAG does:
+question
+   ↓
+one retrieval
+   ↓
+documents
+   ↓
+LLM
+
+But the original question contains an indirect reference:
+"the product that replaced..."
+
+Your refund document might never mention:
+old Enterprise plan
+
+And the replacement-announcement document might never mention:
+refund period
+
+So no single chunk has enough information.
+
+You need to connect:
+Enterprise
+   ↓ replaced by
+Enterprise Plus
+   ↓ has policy
+45 days
+
+That's the purpose of multi-hop retrieval.
+
+### What actually runs the hops?
+Your application needs an orchestration layer.
+
+Conceptually it maintains some state:
+state = {    "original_question": "...",    "known_facts": [],    "retrieved_documents": [],    "next_query": None}
+
+
+state isn't special RAG magic. It's just data your program keeps while solving the question.
+
+After hop 1:
+state["known_facts"] = [    "Enterprise Plus replaced Enterprise."]
+
+
+Then your code or an LLM generates the next query:
+state["next_query"] = (    "What is the refund policy for Enterprise Plus?")
+
+
+Then retrieve again.
+
+This is one reason something like LangGraph becomes useful: it can represent:
+retrieve
+   ↓
+inspect result
+   ↓
+decide what to search next
+   ↓
+retrieve again
+
+But LangGraph is not required. Plain Python can absolutely implement this.
+
+### Who decides the next query?
+There are two broad possibilities.
+
+If the process is predictable, your code can determine it.
+
+For example:
+replacement = extract_product_name(result)next_query = f"What is the refund policy for {replacement}?"
+
+
+For flexible questions, an LLM is often used.
+
+You might give it:
+Original question:
+What refund policy applies to the product that replaced Enterprise?
+
+Evidence discovered:
+Enterprise Plus replaced Enterprise.
+
+What information is still missing?
+
+It might produce:
+We still need the Enterprise Plus refund policy.
+
+Next search:
+Enterprise Plus refund policy
+
+So yes, a flexible multi-hop system can involve several LLM calls.
+
+Potentially:
+LLM → decide first search
+retrieval
+LLM → inspect evidence / create next search
+retrieval
+LLM → final answer
+
+This can get expensive, which is why you don't make every query multi-hop.
+
+### How does the system know when to stop?
+Very important.
+
+Without a stopping rule you could create:
+search
+→ think
+→ search
+→ think
+→ search
+→ ...
+
+forever.
+
+A system usually stops when it believes it has enough evidence to answer.
+
+Conceptually:
+Do I have sufficient evidence?
+        │
+     yes│no
+        │
+   answer  generate next query
+
+You can also enforce hard limits:
+maximum_hops = 3
+
+or:
+maximum_retrieval_calls = 5
+
+That protects latency and cost.
+
+A good system usually has both:
+semantic stopping condition
++
+hard safety limit
+
+### Multi-hop does not necessarily mean an agent
+This is another distinction worth getting right.
+
+You can build a fixed workflow:
+retrieve entity
+↓
+retrieve property of entity
+↓
+answer
+
+That's multi-hop but not necessarily agentic.
+
+An agentic version has more freedom:
+Should I search?
+What should I search?
+Which source?
+Should I search again?
+Should I use another tool?
+Do I have enough evidence?
+
+So:
+multi-hop retrieval
+⊂ possible agentic behavior
+
+but multi-hop itself does not require an agent.
