@@ -1084,3 +1084,14 @@ multi-hop retrieval
 ⊂ possible agentic behavior
 
 but multi-hop itself does not require an agent.
+
+
+# Routing
+           User query
+              ↓
+            Router
+         /     |      \
+        /      |       \
+    policies   DB    engineering
+        ↓      ↓         ↓
+    retrieve/query appropriate source
