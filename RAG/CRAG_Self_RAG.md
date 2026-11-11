@@ -40,6 +40,15 @@ While basic tutorials love to showcase simple 50-line RAG scripts, enterprise pl
 
 The trade-off is latency and cost—adding evaluation steps and potential web search fallbacks adds extra milliseconds and token overhead to every request. However, for production systems where accuracy is non-negotiable, that overhead is a mandatory price of admission.
 
+
+
+
+
+
+
+
+
+
 # Self-RAG
 It's an architectural desing which uses LLM to decide when to retrieve documents and when to answer directly, it also uses LLM to evaluate the quality of retrieved chunks and checks it's own output for hallucinations using special structural tokens
 
@@ -53,4 +62,13 @@ It's an architectural desing which uses LLM to decide when to retrieve documents
 [IsUSE] (Is Useful): A final sanity check: "Is this generated response actually useful and solving the user's intent?" (Options: 1 through 5).
 
 
+
+#### How it works in practice: 
 If you ask Self-RAG a question, it drafts an answer. If it hits an uncertain entity, it outputs [Retrieve: Yes], fetches chunks, evaluates them with [IsREL], discards useless ones, generates an answer, and checks its own work for hallucinations using [IsSUP]. If it fails [IsSUP], it automatically rewrites the answer
+
+
+1. Should retrieval happen?
+2. Ar ethe retrieved documents relevant?
+3. Is the generated response grounded in the retrieved documents?
+4. Does the response actually answers the user's query?
+

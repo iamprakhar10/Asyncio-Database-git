@@ -44,3 +44,12 @@ Memory-based decisions
 
 ###### This is not. atooling problem
 This is a system and discipline problem
+
+
+
+
+##### What Experiment tracking actually solves
+Decission Tracibility
+System memory
+Team alignment
+Production safety

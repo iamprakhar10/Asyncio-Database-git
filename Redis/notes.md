@@ -376,3 +376,24 @@ user:42
 
 Run:
 HSET user:42 name Prakhar city Jabalpur age 26
+
+Redis
+
+key = user:42
+
+127.0.0.1:6379> HGETall user:42 
+1) "name"
+2) "Prakhar"
+3) "city"
+4) "Jabalpur"
+5) "age"
+6) "26"
+
+
+┌─────────┬──────────┐
+│ field   │ value    │
+├─────────┼──────────┤
+│ name    │ Prakhar  │
+│ city    │ Jabalpur │
+│ age     │ 26       │
+└─────────┴──────────┘

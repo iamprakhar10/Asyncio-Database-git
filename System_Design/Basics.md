@@ -277,3 +277,9 @@ You don't need to scale everything equally.
 Many endpoints does not mean microservices.
 
 Microservices means many independently running applications/services that communicate with each other.
+
+
+
+
+
+### Rate limiting

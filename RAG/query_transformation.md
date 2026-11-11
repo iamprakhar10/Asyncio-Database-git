@@ -1087,6 +1087,8 @@ but multi-hop itself does not require an agent.
 
 
 # Routing
+Routing in RAG is the architectural pattern of placing a "decision layer" at the very beginning of your pipeline to inspect an incoming user query and dynamically decide where it should go, what retrieval strategy to use, or whether it even needs RAG at all
+
            User query
               ↓
             Router
