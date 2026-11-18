@@ -80,7 +80,9 @@ Spark already knows how to read Parquet files from disk and process them without
 
 PyArrow is not just for copying Parquet files from disk into RAM. It implements Arrow, which is a standardized in-memory column format for fast sharing between systems like Spark and Pandas. Sometimes it reads Parquet files, but sometimes it just moves data already in memory, and sometimes you use it in pure Python without Spark at all. The key thing is that Arrow is not the mandatory middle step between Parquet and RAM; it's a way to represent and exchange columnar data efficiently when different tools need to work together.
 
-So the data which is already present in RAM, which is used by Pandas, looks different when it's used in Spark, and that conversion is done by Arrow
+###### Question: So the data which is already present in RAM, which is used by Pandas, looks different when it's used in Spark, and that conversion is done by Arrow
+
+Answer: 
 Yes, exactly. You've understood the main idea. There is just one technical correction: Arrow doesn't perform every conversion automatically. It defines a standardized in-memory representation, and libraries such as PyArrow implement the conversion.
 
 The same logical data can have different physical representations in RAM.
@@ -92,3 +94,8 @@ Spark: Typically represents the data using its JVM-based internal structures, of
 Pandas: Represents the data using structures such as NumPy arrays or Arrow-backed arrays.
 
 Arrow: Defines a standard columnar memory layout that allows the two environments to exchange data efficiently.
+
+###### Question: So Spark doesn't take and process data in form of Parquet files directly
+
+Answer:
+Good question. It reads Parquet directly from disk, yes. But not literally compute on the compressed bytes, as they are stored in the file. It reads the Parquet column chunks, then it decompresses and decodes them into its own in-memory columnar structures, and that is what it computes on. So, “directly” is true for reading Parquet, but not for computing on the raw on-disk representation. That decode-and-layout step is what turns “storage-optimized columns” into “compute-optimized columns.
