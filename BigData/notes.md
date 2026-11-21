@@ -105,3 +105,15 @@ Apache Arrow's in-memory format is columnar, so data represented in that format 
 However, the original data doesn't have to be columnar. PyArrow can convert row-oriented data into its columnar representation.
 
 For example, PyArrow can take a Python list of dictionaries (row-oriented data) and create an Arrow Table.
+
+
+### Data sources and formats
+Unstructured data is more flexible, but has too much parsing overhead
+
+Semi-structured data:
+XML, JSON
+
+Structured data has more efficient storage and performance, least parsing overhead
+
+Parquet is a structured data format
+
