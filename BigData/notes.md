@@ -99,3 +99,9 @@ Arrow: Defines a standard columnar memory layout that allows the two environment
 
 Answer:
 Good question. It reads Parquet directly from disk, yes. But not literally compute on the compressed bytes, as they are stored in the file. It reads the Parquet column chunks, then it decompresses and decodes them into its own in-memory columnar structures, and that is what it computes on. So, “directly” is true for reading Parquet, but not for computing on the raw on-disk representation. That decode-and-layout step is what turns “storage-optimized columns” into “compute-optimized columns.
+
+Apache Arrow's in-memory format is columnar, so data represented in that format must follow a column-oriented layout.
+
+However, the original data doesn't have to be columnar. PyArrow can convert row-oriented data into its columnar representation.
+
+For example, PyArrow can take a Python list of dictionaries (row-oriented data) and create an Arrow Table.
