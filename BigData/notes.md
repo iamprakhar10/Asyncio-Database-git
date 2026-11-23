@@ -117,3 +117,49 @@ Structured data has more efficient storage and performance, least parsing overhe
 
 Parquet is a structured data format
 
+Row wise storage are good for application databases because it requires reads, inserts
+Best use- OLTP/Transactional apps
+
+##### OLTP (Online Transaction Processing)
+It's a database architecture and workload type designed for high-volume, short, real-time read and write operations(placing an order, updating a user profile, or recording a payment)
+
+*Core characterstics*
+1. Short, frequent transactions: Most queries touch a small number of rows (often via primary keys or B-tree indexes) and complete in milliseconds.
+
+Heavy write and update activity: Unlike analytics workloads that mostly read historical data, OLTP systems constantly INSERT, UPDATE, and DELETE live records.
+
+Normalized schemas (typically 3NF): Tables are split across relational entities (e.g., users, orders, order_items, payments) to eliminate data duplication and prevent update anomalies during concurrent writes.
+
+ACID guarantees: Transactions are Atomic, Consistent, Isolated, and Durable—meaning a partial failure rolls back cleanly and concurrent updates do not corrupt state.
+
+Row-oriented storage: Rows are stored contiguously on disk/memory pages, making point lookups and single-record writes fast.
+
+###### Typical Architecture & Trade-offs
+In a standard application backend, an OLTP database acts as the system of record:
+
+1. Application writes hit the OLTP primary instance, which appends changes to a Write-Ahead Log (WAL) for durability and updates in-memory buffer pools and indexes.
+
+2. Read replicas handle scaling read traffic or offloading lighter reporting queries without contending with primary writes.
+
+3. Analytical workloads are usually decoupled via CDC (Change Data Capture) or ETL/ELT pipelines into an OLAP store so heavy scans do not slow down live user transactions
+
+
+##### OLAP (Online Analytical Processing)
+It's a database architecture and workload type built for complex, read-heavy analytical queries - such as aggregations, cohort analysis, trend rollups, and multi-dimensional slicing—across large volumes of historical data.
+
+While OLTP powers live application state (INSERT/UPDATE/DELETE on individual records), OLAP answers business and analytical questions over millions or billions of rows without impacting production transactions.
+
+
+Core Characteristics of OLAP
+Read-heavy, scan- and aggregate-intensive: Queries typically read many rows across a few columns (SUM, COUNT, AVG, GROUP BY, window functions) rather than doing single-row primary-key lookups.
+
+Columnar storage: Data is stored column-by-column rather than row-by-row. A query touching 3 out of 100 columns only reads data blocks for those 3 columns, cutting I/O dramatically and enabling high compression (e.g., run-length, dictionary encoding).
+
+Denormalized schemas (Star / Snowflake): Fact tables (events, transactions, metrics) connect to dimension tables (time, user, product, region), reducing expensive multi-way joins at query time.
+
+Batch or micro-batch ingestion: Data usually lands via ETL/ELT pipelines or Change Data Capture (CDC) from OLTP systems, optimized for bulk appends/loads rather than frequent small row updates.
+
+Massive scale & MPP / vectorized execution: Designed to scan large datasets across distributed workers or vectorized CPU/GPU execution engines.
+
+###### Why Most OLAP Still Runs on CPUs
+GPUs lose out mostly because moving data to the GPU is a major bottleneck and GPUs are expensive relative to how fast vectorized CPUs already are for general SQL analytics—with VRAM ceilings and messy string/join/branching logic making it harder outside specialized niches.
