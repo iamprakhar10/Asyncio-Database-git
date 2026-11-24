@@ -145,6 +145,10 @@ In a standard application backend, an OLTP database acts as the system of record
 
 
 ##### OLAP (Online Analytical Processing)
+If Queries are like few large operations involving *subset* of all columns. Rather than small operations involving whole rows for which we use OLTP processing
+
+FRAGMENTED MEMORY ACCESS PATTERN
+
 It's a database architecture and workload type built for complex, read-heavy analytical queries - such as aggregations, cohort analysis, trend rollups, and multi-dimensional slicing—across large volumes of historical data.
 
 While OLTP powers live application state (INSERT/UPDATE/DELETE on individual records), OLAP answers business and analytical questions over millions or billions of rows without impacting production transactions.
@@ -163,3 +167,123 @@ Massive scale & MPP / vectorized execution: Designed to scan large datasets acro
 
 ###### Why Most OLAP Still Runs on CPUs
 GPUs lose out mostly because moving data to the GPU is a major bottleneck and GPUs are expensive relative to how fast vectorized CPUs already are for general SQL analytics—with VRAM ceilings and messy string/join/branching logic making it harder outside specialized niches.
+
+
+### Apache Parquet
+1. Initial effort by twitter & cloudera
+2. Open source storage format
+3. Widely used in Spark/Hadoop ecosystem
+
+##### How does Parquet files look like
+- On disk, usually not a single file
+
+f you open a .parquet file in a text editor or cat it in a terminal, it looks like compressed binary gibberish—except for the magic bytes PAR1 at the very beginning and end of the file.Structurally, inside that binary stream, a Parquet file is organized into Row Groups, Column Chunks, Pages, and a Footer at the end so readers can jump straight to metadata before reading data.
+
+###### Byte-Level Layout of a Parquet File
+From start to finish on disk or in object storage, a Parquet file follows this layout:
+
+Header (PAR1 — 4 bytes): Identifies the file as Parquet.
+
+Row Groups (1 or more): Horizontal batches of rows (commonly tens of thousands to millions of rows per row group).
+
+Inside each row group, there is one Column Chunk per column.
+
+Each column chunk is split into Pages (data pages, dictionary pages, index pages), where values are first encoded (e.g., plain, dictionary, run-length encoding / bit-packing) and then compressed (e.g., Snappy, Zstandard, Gzip).
+
+Footer: Stored at the end of the file (written after all row groups are flushed). It contains the schema, row group count, byte offsets/sizes of every column chunk, and column statistics (min, max, null_count).
+
+Footer Length (4 bytes) + PAR1 (4 bytes): Placed at the very tail so a reader can seek to the end of the file, read the 4-byte length, jump backward to read the footer, and then selectively fetch only the needed byte ranges.
+
+##### Parquet: Encoding schemes
+###### PLAIN
+- Fixed-width: Back-to-back
+- Non fixed-width: length prefixed
+
+###### RLE_DICTIONARY
+- Run-length encoding + bit-packing + Dictioanry compression
+- Assumes duplicate and repeated value
+
+#### Optimization
+##### Dictionary Encoding
+- Smaller files means less I/O
+- Note: Single dictionary per column chunk, There is a size limit to the dictionary
+
+If the dictionary gets too big -> Automatic fallback to PLAIN
+ie. rest of the data is encoded using the plain encoding format and it's gonna miss all the compression opportunities
+
+We can
+- Increase max dictionary size
+- Decrease row-group size
+
+##### Page Compression
+1. Compression of entire pages
+- Compression schemes(snappy, gzip, lzo...)
+- Decompression speed vs I/O saving trade-off
+
+##### Predicate Pushdown
+SELECT * FROM table where x > 5 ;
+
+Row-group 0: x: [min:0, max: 9]
+Row-group 1: x: [min:3, max: 7]
+Row-group 2: x: [min:1, max: 4]
+They are all stored in the footer of the parquet file
+
+The first thing we do while reading a parquet file is *READING THE FOOTER*
+We will have this metadata at our disposal and we can leverage this metadata for row-group skipping
+
+Row groiup can be 128MB, So skipping it can help us immensly
+
+- Leverage min/max staistics
+    spark.sql.parquet.filterPushdown
+
+- Doesn't work well on unsorted data
+What to do? Presort data on predicate columns
+
+- Use typed predicates
+Eg : use actual longs in predicate instead of ints fro long columns
+
+
+- Dictionary filtering
+SELECT * FROM table WHERE x=5;
+
+Row-group 2: x: [min:1, max: 4]
+Row-group 0: x: [min:0, max: 9]
+Row-group 1: x: [min:3, max: 7]
+
+##### Partitioning
+Embed the preicates we have into the actual directory structure of the file
+
+If we know predicates before workhand
+
+##### Avoid many small files
+1. Foe every file
+- set up internal data structure
+- Instantiate reader objects
+- Fetch file
+- Parse Parquet metadata
+
+The overhead can contribute significantly to our total query time
+
+2. Watchout for incremental workload output!
+Eg: ETL every hour
+
+3. Manual reparti tioning
+    - Can we automate this optimization?
+    - What about concurrent access?
+
+4. We need isolation of Operations(i.e. ACID transactions)
+
+##### Delta Lake
+1. Open-source storage layer on top of parquet in spark
+    - ACID Transactions
+    - Time Travel (versionaing via WAL-Write Ahead Log)
+
+
+##### Avoid few huge parquet files
+1. SELECT count (*) on 250GB dataset
+  - 250 partitions(~iGB each)
+    5 mins
+  - 1 HUge partition(250GB)
+    1 hour
+
+Because the footer becomes huge, we will have a lots of row groups, lots of metadata and the footer processing is not optimized for speed
