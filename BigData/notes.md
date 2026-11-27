@@ -287,3 +287,81 @@ Eg: ETL every hour
     1 hour
 
 Because the footer becomes huge, we will have a lots of row groups, lots of metadata and the footer processing is not optimized for speed
+
+
+# Redshift, Snowflake, Databricks and spark
+Spark, Redshift, and Snowflake overlap significantly in the computations they perform.
+
+All three can filter data, join tables, aggregate millions or billions of records, and distribute computations across multiple machines.
+
+The main difference is:
+- Apache Spark: Primarily a general-purpose distributed processing engine. It usually reads data from external storage, processes it, and writes results somewhere.
+- Amazon Redshift and Snowflake: Complete analytical database platforms. They provide distributed processing engines plus persistent data storage, table management, and database services.
+But there's one additional distinction: Redshift and Snowflake are particularly optimized for analytical SQL queries, whereas Spark supports broader processing workloads, including complex data pipelines and distributed machine learning.
+
+So your understanding is correct: they overlap in processing capabilities, but Redshift and Snowflake provide more integrated database functionality.
+
+
+Databricks competes with Redshift and Snowflake for analytics and warehousing, though each is stronger in different areas. They overlap, but they're not identical. So companies choose among them based on their needs. Does that answer it?
+
+Yes. Databricks competes with Amazon Redshift and Snowflake, particularly in large-scale SQL analytics and data warehousing.
+
+However, their strengths differ:
+- Databricks: Strong in data engineering, Apache Spark, machine learning, AI, and lakehouse architecture.
+- Snowflake: Strong in managed SQL analytics, data warehousing, and data sharing.
+- Amazon Redshift: Strong in SQL analytics and integration with the AWS ecosystem.
+All three can store or manage data, execute distributed SQL queries, and support analytical workloads.
+
+The important difference is that Databricks also provides a broader environment for Spark-based data processing and ML workflows.
+
+So yes, they are competitors, but not identical products. Companies choose among them based on their workloads, existing infrastructure, and requirements
+
+
+# Story/ History
+Say our comapany has data: Sales, Transactions, Logs, Events and we wantd to process it for analytics and engineering
+
+So we write SQL, Python, Java and we run it on A SINGLE MACHINE
+
+But data started to grow: Structured + unstructured images, videos, Pdfs...
+
+Buying bigger machines works for a while until we can't. Also a single point of failure is present
+
+
+Then comes a solution from Google -> Hadoop
+
+But it didn't solved everything because of one big issue-
+When we assigned work to multiple machines, each machine was reading and writing data from the disk which was "slow".
+
+So hadoop is scalable and falut tolerant but slow
+
+### How to speed up Hadoop?
+
+Spark...
+
+The main idea was same - Distribute the data between multiple machines, but instead of reading and writing to discs, spark is 
+going to keep the data in the memory whenever it's possible
+
+New problems arrived...
+this time it was not the technology itself but rather "Who was able to use it"
+
+Spark was only for big data experts that were able to develop using scala and java. 
+But data science was explaoding, universities were teaching pyhton.
+Python libraries like numpy, pytorch, scikit-learn etc were exploding. So data scientists prefer only python to do their work and there was a gap between these two worlds
+
+- Big Data engineers that uses spark
+- Big data scientists were using python
+
+So Pyspark was introduces to let python users like data scientists work with spark environment
+
+So anyone knowing python is welcomed to use spark
+
+### But the operational side was a real nightmare
+We have to go manage the infrastructure, configure the clusters, handle the scaling, the security, the failures. So the projects were really slow
+
+Our goal was to focus on building the pipelines and projects, not babysitting the clusters. Everything was scattered, the storage, the notebooks, the scheduling, the monitoring
+
+Because of all those issues, in 2013, the creators of sparkstarted thinnking about a bigger idea.
+
+How about we built databricks where a dedicated team is going
+to handle all the complex infrastructure and the nightmare that comes with it completely behind the scenes(Manage the clusters, connecting with cloud storage, integrating the notebooks, configuring the environments) and putting everything in one unified platform. And we customers, data teams, can finally focus on bulding 
+data pipelines, running the analysis, delivering all the projects
