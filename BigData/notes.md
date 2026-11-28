@@ -365,3 +365,83 @@ Because of all those issues, in 2013, the creators of sparkstarted thinnking abo
 How about we built databricks where a dedicated team is going
 to handle all the complex infrastructure and the nightmare that comes with it completely behind the scenes(Manage the clusters, connecting with cloud storage, integrating the notebooks, configuring the environments) and putting everything in one unified platform. And we customers, data teams, can finally focus on bulding 
 data pipelines, running the analysis, delivering all the projects
+
+
+
+# Spark
+
+Process 1: Python
+Runs your PySpark code
+Creates DataFrames, defines transformations, submits jobs
+          |
+          |
+          |
+Py4J communication
+          |
+          |
+          |
+Process 2: Java (JVM)
+Runs Spark's driver-side engine
+Plans tasks, schedules work, executes Spark operations
+          |
+          |
+          |
+Local execution
+          |
+Spark executor threads
+Process data using your laptop's CPU cores and RAM
+
+
+Normally Spark keeps the data in the JVM and your Python side mostly holds a plan and small results, not a full copy. Picture it like Python sends instructions to JVM, JVM reads and aggregates the data, and only small answers come back to Python to show or store. But if you pull everything into Python with collect or toPandas, then yes, you'll have another copy in Python memory and that can blow up RAM. Also, Python UDFs can copy chunks of data to Python worker processes, which adds overhead. So, it doesn't automatically double memory, but some operations can.
+
+Python Process                  JVM Process
+┌─────────────────┐           ┌─────────────────────┐
+│ Python code     │           │ Spark engine        │
+│ DataFrame plan  │ ────────► │ Reads Parquet data  │
+│ Small metadata  │           │ Processes partitions│
+└─────────────────┘           └─────────────────────┘
+
+But there are exceptions where additional copies can exist.
+- If you call df.collect() or df.toPandas(), the results are transferred into Python memory. This can substantially increase RAM usage.
+- If you use Python UDFs, data is transferred between JVM and Python worker processes, creating additional memory overhead.
+- If you create a Spark DataFrame from an existing Pandas DataFrame, both representations may temporarily occupy memory.
+
+
+##### DataFrame 
+Databases store tables, they optimize for query and storage, 
+but if we are using databases we are interacting with data 
+by using only SQL. So when the transformation becomes complex, SQL becomes really long and nested and hard to manage.
+
+We don't havae the flexibility and modularity like python. Also leess advanced analytics
+
+So databases are optimized for different job(storage and query), not for advanced analytics and data processing
+
+In both cases, excel and dataabses our table is living outside of
+our python code and we can't fully use programming logic on it
+
+A Dataframe will be a python object containg data in the memory.
+Pandas, PySpark, Polars are python external libraries in which dataframe is a core big concept. It is very similar to SQL
+
+###### Why three libraries? why not one?
+1. Pandas
+- One machine
+- Executes Immediately
+- Simple
+
+2. Pyspark
+- Multiple maachines, data lives mostly in memory
+- How it executes the code
+It's lazy, nothing gonna run immediately, Pyspark is going to start building our plan step-by-step and start optimizing the entire workflow and only at the end if we request a result, only then 
+PySpark can start doing the job and start executing the plan
+- Massive data
+- Lazy
+- Parallel
+- Speed
+- Complex & Infrastructure
+
+3. Polars
+- Simple(One machine)
+- Lazy
+- Fast
+- No INfrastructure
+- Small data
